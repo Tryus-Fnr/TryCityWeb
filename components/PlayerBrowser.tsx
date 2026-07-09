@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import ItemIcon from "@/components/ItemIcon";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,12 +71,6 @@ function fmtMoney(v: number | null): string {
   return v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
 }
 
-function materialToTexture(id: string): string {
-  return id.replace(/^minecraft:/, "");
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
 function PlayerAvatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <Image
@@ -106,40 +101,26 @@ function StatusBadge({ status }: { status: string | null }) {
 // ─── Inventory grid ──────────────────────────────────────────────────────────
 
 function ItemSlot({ item, slot }: { item: ParsedItem; slot: number }) {
-  const [imgError, setImgError] = useState(false);
-
   if (!item) {
     return (
       <div
-        className="relative aspect-square w-full rounded border border-white/[0.08] bg-black/30"
+        className="relative aspect-square w-full rounded border border-white/8 bg-black/30"
         title={`Slot ${slot}`}
       />
     );
   }
 
-  const mat   = materialToTexture(item.id);
-  const label = item.customName ?? mat.replace(/_/g, " ");
+  const mat   = item.id.replace(/^minecraft:/, "").toUpperCase(); // für ItemIcon: material-Name wie "DIAMOND_SWORD"
+  const label = item.customName ?? mat.toLowerCase().replace(/_/g, " ");
 
   return (
     <div
       className="group relative aspect-square w-full cursor-default overflow-hidden rounded border border-white/10 bg-black/40 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
       title={`${label}${item.count > 1 ? ` ×${item.count}` : ""}`}
     >
-      {!imgError ? (
-        <Image
-          src={`https://mc-heads.net/item/${mat}`}
-          alt={label}
-          fill
-          sizes="40px"
-          className="object-contain p-0.5"
-          unoptimized
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <div className="flex h-full items-center justify-center overflow-hidden p-0.5 text-center text-[8px] leading-tight text-neutral-500">
-          {mat.split("_").slice(-1)[0]}
-        </div>
-      )}
+      <div className="flex h-full items-center justify-center p-0.5">
+        <ItemIcon material={mat} size={32} />
+      </div>
       {item.count > 1 && (
         <span className="absolute bottom-0.5 right-0.5 text-[10px] font-bold leading-none text-white drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
           {item.count}
@@ -487,6 +468,9 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
     </div>
   );
 }
+
+
+
 
 
 
