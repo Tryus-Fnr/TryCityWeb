@@ -87,7 +87,7 @@ export default function ItemDetail({ material }: { material: string }) {
         </div>
         <div className="text-right">
           <div className="text-sm text-neutral-500">Aktueller Verkaufspreis</div>
-          <div className="text-4xl font-extrabold text-sky-400">
+          <div className="text-4xl font-extrabold text-emerald-400">
             {data?.currentPrice !== null && data?.currentPrice !== undefined
               ? `$${formatMoney(data.currentPrice)}`
               : "–"}

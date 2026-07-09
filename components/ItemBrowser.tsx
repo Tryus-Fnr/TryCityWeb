@@ -136,12 +136,12 @@ export default function ItemBrowser() {
                     </div>
                   </div>
                   {spark.length > 1 && <MiniSparkline points={spark} className="mt-3" />}
-                  <div className="mt-2 text-lg font-bold text-sky-400">
+                  <div className="mt-2 text-lg font-bold text-emerald-400">
                     ${formatMoney(item.price)}
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs">
                     {change !== null && Math.abs(change) >= 0.05 ? (
-                      <span className={change > 0 ? "text-sky-400" : "text-red-400"}>
+                      <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
                         {formatPct(change)} <span className="text-neutral-600">24h</span>
                       </span>
                     ) : (
