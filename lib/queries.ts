@@ -179,6 +179,26 @@ export async function loadServersNow(): Promise<ServerNow[]> {
   }));
 }
 
+/** Sparklines für alle Items: täglich aggregierter Preis der letzten 14 Tage. */
+export type SparklinePoint = { day: string; price: number };
+export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint[]>> {
+  const rows = await query<{ material: string; day: string; price: string }>(
+    `SELECT material,
+            DATE(ts) AS day,
+            ROUND(AVG(price), 2) AS price
+     FROM smpg_price_history
+     WHERE ts >= NOW() - INTERVAL 14 DAY
+     GROUP BY material, DATE(ts)
+     ORDER BY material ASC, day ASC`
+  );
+  const result: Record<string, SparklinePoint[]> = {};
+  for (const r of rows) {
+    if (!result[r.material]) result[r.material] = [];
+    result[r.material].push({ day: r.day, price: Number(r.price) });
+  }
+  return result;
+}
+
 /** Höchste Gesamt-Spielerzahl seit `sinceMs`. */
 export async function loadPeak(sinceMs: number): Promise<number> {
   const rows = await query<{ peak: string | null }>(

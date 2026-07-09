@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatMaterialName, formatMoney, formatPct } from "@/lib/format";
+import ItemIcon from "@/components/ItemIcon";
 
 type Item = {
   material: string;
@@ -12,6 +13,8 @@ type Item = {
   maxPrice: number | null;
   yesterday: number | null;
 };
+
+type SparklinePoint = { day: string; price: number };
 
 const SORTS = [
   { key: "price-desc", label: "Höchster Preis" },
@@ -25,6 +28,7 @@ export default function ItemBrowser() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<string>("price-desc");
+  const [sparklines, setSparklines] = useState<Record<string, SparklinePoint[]>>({});
 
   useEffect(() => {
     fetch("/api/items")
@@ -34,6 +38,11 @@ export default function ItemBrowser() {
         else setError(d.error ?? "Fehler beim Laden.");
       })
       .catch(() => setError("Fehler beim Laden."));
+
+    fetch("/api/items/sparklines")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setSparklines(d.sparklines); })
+      .catch(() => {/* silent */});
   }, []);
 
   const filtered = useMemo(() => {
@@ -113,15 +122,27 @@ export default function ItemBrowser() {
               item.yesterday && item.yesterday > 0
                 ? ((item.price - item.yesterday) / item.yesterday) * 100
                 : null;
+            const spark = sparklines[item.material] ?? [];
             return (
               <Link
                 key={item.material}
                 href={`/items/${item.material.toLowerCase()}`}
-                className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+                className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
               >
-                <div className="truncate text-sm font-semibold group-hover:text-emerald-300">
-                  {formatMaterialName(item.material)}
+                {/* Icon + Name */}
+                <div className="flex items-center gap-2.5">
+                  <ItemIcon material={item.material} size={28} className="shrink-0" />
+                  <div className="truncate text-sm font-semibold group-hover:text-emerald-300">
+                    {formatMaterialName(item.material)}
+                  </div>
                 </div>
+
+                {/* Sparkline */}
+                {spark.length > 1 && (
+                  <MiniSparkline points={spark} className="mt-3" />
+                )}
+
+                {/* Preis + Änderung */}
                 <div className="mt-2 text-lg font-bold text-emerald-400">
                   ${formatMoney(item.price)}
                 </div>
@@ -143,3 +164,52 @@ export default function ItemBrowser() {
     </div>
   );
 }
+
+/** Winzige SVG-Sparkline für den Preisverlauf. */
+function MiniSparkline({
+  points,
+  className = "",
+}: {
+  points: SparklinePoint[];
+  className?: string;
+}) {
+  const W = 160;
+  const H = 36;
+  const prices = points.map((p) => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min || 1;
+
+  const xs = points.map((_, i) => (i / (points.length - 1)) * W);
+  const ys = prices.map((p) => H - ((p - min) / range) * (H - 4) - 2);
+
+  const d =
+    xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ") +
+    ` L${W},${H} L0,${H} Z`;
+
+  const line = xs
+    .map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`)
+    .join(" ");
+
+  const isUp = prices[prices.length - 1] >= prices[0];
+  const color = isUp ? "#34d399" : "#f87171";
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className={`w-full ${className}`}
+      style={{ height: H }}
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient id={`sg-${isUp}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={d} fill={`url(#sg-${isUp})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
+  );
+}
+

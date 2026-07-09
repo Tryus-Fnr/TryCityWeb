@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import ItemIcon from "@/components/ItemIcon";
 import {
   Area,
   AreaChart,
@@ -76,8 +77,13 @@ export default function ItemDetail({ material }: { material: string }) {
           <Link href="/items" className="text-sm text-neutral-500 hover:text-neutral-300">
             ← Alle Items
           </Link>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">{name}</h1>
-          <div className="mt-1 font-mono text-sm text-neutral-500">{material}</div>
+          <div className="mt-2 flex items-center gap-3">
+            <ItemIcon material={material} size={40} />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{name}</h1>
+              <div className="mt-0.5 font-mono text-sm text-neutral-500">{material}</div>
+            </div>
+          </div>
         </div>
         <div className="text-right">
           <div className="text-sm text-neutral-500">Aktueller Verkaufspreis</div>

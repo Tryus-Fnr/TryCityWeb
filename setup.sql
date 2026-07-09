@@ -2,7 +2,11 @@
 -- TryCityWeb – Datenbank-Setup
 -- Auf dem MySQL-Server der Minecraft-Datenbank ausführen.
 -- <DATENBANK> und <PASSWORT> ersetzen (Passwort NICHT ins Repo schreiben!).
+--
+-- Ausführen:  mysql -u root -p < setup.sql
 -- ============================================================================
+
+USE `<DATENBANK>`;
 
 -- Login-Code-Tabelle (wird auch vom SMPGlobal-Plugin automatisch angelegt)
 CREATE TABLE IF NOT EXISTS `smpg_web_login_codes` (
