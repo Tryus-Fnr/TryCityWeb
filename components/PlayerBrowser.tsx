@@ -369,11 +369,45 @@ function DetailPanel({ uuid, name, onClose }: { uuid: string; name: string; onCl
   );
 }
 
+// ─── Pagination ──────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 50;
+
+function Pagination({
+  page, pageCount, total, onPage,
+}: {
+  page: number; pageCount: number; total: number; onPage: (p: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/3 px-4 py-3">
+      <span className="text-sm text-neutral-500">
+        Seite {page + 1} / {pageCount}
+        <span className="ml-2 text-neutral-600">({total} gesamt)</span>
+      </span>
+      <div className="flex items-center gap-2">
+        <button onClick={() => { onPage(0); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page === 0}
+          className="rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default">«</button>
+        <button onClick={() => { onPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page === 0}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default">Zurück</button>
+        <button onClick={() => { onPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page >= pageCount - 1}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default">Weiter</button>
+        <button onClick={() => { onPage(pageCount - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page >= pageCount - 1}
+          className="rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default">»</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
   const [players,  setPlayers]  = useState<PlayerRow[]>(initial);
   const [search,   setSearch]   = useState("");
+  const [page,     setPage]     = useState(0);
   const [selected, setSelected] = useState<{ uuid: string; name: string } | null>(null);
   const [listLoading, setListLoading] = useState(false);
 
@@ -386,7 +420,12 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
       .finally(() => setListLoading(false));
   }, []);
 
+  // Reset Seite bei Suche
+  useEffect(() => { setPage(0); }, [search]);
+
   const filtered = players.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-6">
@@ -415,23 +454,30 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
       {filtered.length === 0 && !listLoading ? (
         <div className="py-16 text-center text-neutral-500">Kein Spieler gefunden.</div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
-            <button
-              key={p.uuid}
-              onClick={() => setSelected({ uuid: p.uuid, name: p.name })}
-              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-400/4"
-            >
-              <PlayerAvatar name={p.name} size={40} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold group-hover:text-emerald-300">{p.name}</div>
-                <div className="mt-0.5 text-xs text-neutral-500">⏱ {fmtDuration(p.onlineTime)}</div>
-                <div className="mt-0.5 text-xs text-neutral-600">Zuletzt: {fmtDate(p.lastJoin)}</div>
-              </div>
-              <span className="flex-shrink-0 text-xs text-neutral-600 group-hover:text-emerald-400">→</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {paged.map((p) => (
+              <button
+                key={p.uuid}
+                onClick={() => setSelected({ uuid: p.uuid, name: p.name })}
+                className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-400/4"
+              >
+                <PlayerAvatar name={p.name} size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold group-hover:text-emerald-300">{p.name}</div>
+                  <div className="mt-0.5 text-xs text-neutral-500">⏱ {fmtDuration(p.onlineTime)}</div>
+                  <div className="mt-0.5 text-xs text-neutral-600">Zuletzt: {fmtDate(p.lastJoin)}</div>
+                </div>
+                <span className="shrink-0 text-xs text-neutral-600 group-hover:text-emerald-400">→</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {pageCount > 1 && (
+            <Pagination page={page} pageCount={pageCount} total={filtered.length} onPage={setPage} />
+          )}
+        </>
       )}
 
       {/* Detail-Modal */}
@@ -441,4 +487,7 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
     </div>
   );
 }
+
+
+
 

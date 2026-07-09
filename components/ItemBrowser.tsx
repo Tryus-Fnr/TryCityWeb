@@ -23,12 +23,15 @@ const SORTS = [
   { key: "name", label: "Name A–Z" },
 ] as const;
 
+const PAGE_SIZE = 50;
+
 export default function ItemBrowser() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<string>("price-desc");
   const [sparklines, setSparklines] = useState<Record<string, SparklinePoint[]>>({});
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
     fetch("/api/items")
@@ -58,23 +61,19 @@ export default function ItemBrowser() {
       i.yesterday && i.yesterday > 0 ? Math.abs((i.price - i.yesterday) / i.yesterday) : 0;
     list = [...list];
     switch (sort) {
-      case "price-desc":
-        list.sort((a, b) => b.price - a.price);
-        break;
-      case "price-asc":
-        list.sort((a, b) => a.price - b.price);
-        break;
-      case "change":
-        list.sort((a, b) => changeOf(b) - changeOf(a));
-        break;
-      case "name":
-        list.sort((a, b) =>
-          formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))
-        );
-        break;
+      case "price-desc": list.sort((a, b) => b.price - a.price); break;
+      case "price-asc":  list.sort((a, b) => a.price - b.price); break;
+      case "change":     list.sort((a, b) => changeOf(b) - changeOf(a)); break;
+      case "name":       list.sort((a, b) => formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))); break;
     }
     return list;
   }, [items, search, sort]);
+
+  // Reset page wenn sich Suche/Sortierung ändert
+  useEffect(() => { setPage(0); }, [search, sort]);
+
+  const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -116,51 +115,89 @@ export default function ItemBrowser() {
           Lade…
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {filtered.map((item) => {
-            const change =
-              item.yesterday && item.yesterday > 0
-                ? ((item.price - item.yesterday) / item.yesterday) * 100
-                : null;
-            const spark = sparklines[item.material] ?? [];
-            return (
-              <Link
-                key={item.material}
-                href={`/items/${item.material.toLowerCase()}`}
-                className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
-              >
-                {/* Icon + Name */}
-                <div className="flex items-center gap-2.5">
-                  <ItemIcon material={item.material} size={28} className="shrink-0" />
-                  <div className="truncate text-sm font-semibold group-hover:text-emerald-300">
-                    {formatMaterialName(item.material)}
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {paged.map((item) => {
+              const change =
+                item.yesterday && item.yesterday > 0
+                  ? ((item.price - item.yesterday) / item.yesterday) * 100
+                  : null;
+              const spark = sparklines[item.material] ?? [];
+              return (
+                <Link
+                  key={item.material}
+                  href={`/items/${item.material.toLowerCase()}`}
+                  className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ItemIcon material={item.material} size={28} className="shrink-0" />
+                    <div className="truncate text-sm font-semibold group-hover:text-emerald-300">
+                      {formatMaterialName(item.material)}
+                    </div>
                   </div>
-                </div>
+                  {spark.length > 1 && <MiniSparkline points={spark} className="mt-3" />}
+                  <div className="mt-2 text-lg font-bold text-emerald-400">
+                    ${formatMoney(item.price)}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between text-xs">
+                    {change !== null && Math.abs(change) >= 0.05 ? (
+                      <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
+                        {formatPct(change)} <span className="text-neutral-600">24h</span>
+                      </span>
+                    ) : (
+                      <span className="text-neutral-600">± 0 % 24h</span>
+                    )}
+                    <span className="text-neutral-600">Verlauf →</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
 
-                {/* Sparkline */}
-                {spark.length > 1 && (
-                  <MiniSparkline points={spark} className="mt-3" />
-                )}
-
-                {/* Preis + Änderung */}
-                <div className="mt-2 text-lg font-bold text-emerald-400">
-                  ${formatMoney(item.price)}
-                </div>
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  {change !== null && Math.abs(change) >= 0.05 ? (
-                    <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
-                      {formatPct(change)} <span className="text-neutral-600">24h</span>
-                    </span>
-                  ) : (
-                    <span className="text-neutral-600">± 0 % 24h</span>
-                  )}
-                  <span className="text-neutral-600">Verlauf →</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+          {/* Pagination */}
+          {pageCount > 1 && (
+            <Pagination page={page} pageCount={pageCount} total={filtered.length} onPage={setPage} />
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+/** Pagination bar */
+function Pagination({
+  page, pageCount, total, onPage,
+}: {
+  page: number; pageCount: number; total: number; onPage: (p: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <span className="text-sm text-neutral-500">
+        Seite {page + 1} / {pageCount}
+        <span className="ml-2 text-neutral-600">({total} gesamt)</span>
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => { onPage(0); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page === 0}
+          className="rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default"
+        >«</button>
+        <button
+          onClick={() => { onPage(page - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page === 0}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default"
+        >Zurück</button>
+        <button
+          onClick={() => { onPage(page + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page >= pageCount - 1}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default"
+        >Weiter</button>
+        <button
+          onClick={() => { onPage(pageCount - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          disabled={page >= pageCount - 1}
+          className="rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 disabled:opacity-30 disabled:cursor-default"
+        >»</button>
+      </div>
     </div>
   );
 }
