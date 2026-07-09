@@ -1,11 +1,12 @@
 /**
  * Minimal Minecraft NBT parser (big-endian, Paper 1.21 serializeAsBytes format).
- * Keine externen Dependencies.
- * Unterstützt alle drei möglichen Root-Formate die Paper/NbtIo.write produzieren kann:
- *   A) TYPE(0x0A) + 2-byte name len + name bytes + compound entries  (standard named)
- *   B) TYPE(0x0A) + compound entries                                  (unnamed, kein Name-Präfix)
- *   C) compound entries direkt                                         (kein type byte)
+ * Keine externen Dependencies (außer Node.js-builtin zlib).
+ *
+ * Paper schreibt die NBT-Bytes GZIP-komprimiert (1F 8B 08 … = "H4sI…" in Base64).
+ * Der Binary-Wrapper ist: int(slotCount) | per Slot: bool(hasItem) + int(nbtLen) + gzipBytes
  */
+
+import { gunzipSync } from 'zlib';
 
 class NbtReader {
   readonly buf: Buffer;
@@ -168,7 +169,9 @@ export function parseItemNbtBuffer(buf: Buffer): ParsedItem | null {
 
 /**
  * Parses the custom binary format written by PlayerDataSerializer.serializeItemStacks().
- * Format: int(slotCount) | for each slot: bool(hasItem) [+ int(nbtLen) + nbtBytes]
+ * Format: int(slotCount) | for each slot: bool(hasItem) [+ int(nbtLen) + gzipNbtBytes]
+ *
+ * Die NBT-Bytes sind GZIP-komprimiert (Paper NbtIo.writeCompressed / serializeAsBytes).
  */
 export function parseInventoryBase64(base64: string | null): (ParsedItem | null)[] {
   if (!base64) return [];
@@ -185,9 +188,16 @@ export function parseInventoryBase64(base64: string | null): (ParsedItem | null)
     for (let i = 0; i < slotCount; i++) {
       const hasItem = readBool();
       if (!hasItem) { slots.push(null); continue; }
+
       const nbtLen = readInt();
-      const nbtBuf = buf.subarray(pos, pos + nbtLen);
+      let nbtBuf = buf.subarray(pos, pos + nbtLen);
       pos += nbtLen;
+
+      // GZIP-Magic: 1F 8B → dekomprimieren
+      if (nbtBuf.length >= 2 && nbtBuf[0] === 0x1f && nbtBuf[1] === 0x8b) {
+        try { nbtBuf = gunzipSync(nbtBuf); } catch { slots.push(null); continue; }
+      }
+
       slots.push(parseItemNbtBuffer(nbtBuf));
     }
 
@@ -196,5 +206,7 @@ export function parseInventoryBase64(base64: string | null): (ParsedItem | null)
     return [];
   }
 }
+
+
 
 
