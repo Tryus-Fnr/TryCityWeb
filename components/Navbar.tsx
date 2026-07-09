@@ -11,6 +11,7 @@ const TABS = [
   { href: "/", label: "Startseite" },
   { href: "/stats", label: "Server-Stats" },
   { href: "/items", label: "Item-Werte" },
+  { href: "/players", label: "SMP-Spieler" },
 ];
 
 export default function Navbar({ session }: Props) {

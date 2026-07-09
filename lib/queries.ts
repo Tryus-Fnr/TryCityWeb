@@ -199,6 +199,139 @@ export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint
   return result;
 }
 
+// ─── SMP-Spieler ───────────────────────────────────────────────────────────
+
+export type PlayerRow = {
+  uuid: string;
+  name: string;
+  firstJoin: number;
+  lastJoin: number;
+  onlineTime: number;
+  coins: number;
+  gems: number;
+  stars: number;
+};
+
+export async function loadAllPlayers(): Promise<PlayerRow[]> {
+  const rows = await query<{
+    uuid: string;
+    name: string;
+    firstJoin: string;
+    lastJoin: string;
+    onlineTime: string;
+    coins: string;
+    gems: string;
+    stars: string;
+  }>(
+    `SELECT uuid, name, firstJoin, lastJoin, onlineTime, coins, gems, stars
+     FROM tryus_players
+     ORDER BY lastJoin DESC`
+  );
+  return rows.map((r) => ({
+    uuid: r.uuid,
+    name: r.name,
+    firstJoin: Number(r.firstJoin),
+    lastJoin: Number(r.lastJoin),
+    onlineTime: Number(r.onlineTime),
+    coins: Number(r.coins),
+    gems: Number(r.gems),
+    stars: Number(r.stars),
+  }));
+}
+
+export type PlayerDetail = {
+  uuid: string;
+  name: string;
+  firstJoin: number;
+  lastJoin: number;
+  lastQuit: number;
+  onlineTime: number;
+  coins: number;
+  gems: number;
+  stars: number;
+  balance: number | null;
+  bankBalance: number | null;
+  status: string | null;
+  currentServer: string | null;
+  lastServer: string | null;
+  health: number | null;
+  maxHealth: number | null;
+  foodLevel: number | null;
+  expLevel: number | null;
+  experience: number | null;
+  gameMode: string | null;
+  pendingStarterKit: boolean | null;
+  tutorialProgress: number | null;
+};
+
+export async function loadPlayerDetail(uuid: string): Promise<PlayerDetail | null> {
+  const rows = await query<{
+    uuid: string;
+    name: string;
+    firstJoin: string;
+    lastJoin: string;
+    lastQuit: string;
+    onlineTime: string;
+    coins: string;
+    gems: string;
+    stars: string;
+    balance: string | null;
+    bank_balance: string | null;
+    status: string | null;
+    current_server: string | null;
+    last_server: string | null;
+    health: string | null;
+    max_health: string | null;
+    food_level: string | null;
+    exp_level: string | null;
+    experience: string | null;
+    game_mode: string | null;
+    pending_starter_kit: number | null;
+    tutorial_progress: string | null;
+  }>(
+    `SELECT p.uuid, p.name, p.firstJoin, p.lastJoin, p.lastQuit, p.onlineTime,
+            p.coins, p.gems, p.stars,
+            e.balance, e.bank_balance,
+            d.status, d.current_server, d.last_server,
+            d.health, d.max_health, d.food_level, d.exp_level, d.experience,
+            d.game_mode, d.pending_starter_kit, d.tutorial_progress
+     FROM tryus_players p
+     LEFT JOIN smpg_economy e ON e.uuid = p.uuid
+     LEFT JOIN smpg_player_data d ON d.uuid = p.uuid
+     WHERE p.uuid = ?
+     LIMIT 1`,
+    [uuid]
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    uuid: r.uuid,
+    name: r.name,
+    firstJoin: Number(r.firstJoin),
+    lastJoin: Number(r.lastJoin),
+    lastQuit: Number(r.lastQuit),
+    onlineTime: Number(r.onlineTime),
+    coins: Number(r.coins),
+    gems: Number(r.gems),
+    stars: Number(r.stars),
+    balance: r.balance !== null ? Number(r.balance) : null,
+    bankBalance: r.bank_balance !== null ? Number(r.bank_balance) : null,
+    status: r.status,
+    currentServer: r.current_server,
+    lastServer: r.last_server,
+    health: r.health !== null ? Number(r.health) : null,
+    maxHealth: r.max_health !== null ? Number(r.max_health) : null,
+    foodLevel: r.food_level !== null ? Number(r.food_level) : null,
+    expLevel: r.exp_level !== null ? Number(r.exp_level) : null,
+    experience: r.experience !== null ? Number(r.experience) : null,
+    gameMode: r.game_mode,
+    pendingStarterKit: r.pending_starter_kit !== null ? r.pending_starter_kit === 1 : null,
+    tutorialProgress: r.tutorial_progress !== null ? Number(r.tutorial_progress) : null,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+
 /** Höchste Gesamt-Spielerzahl seit `sinceMs`. */
 export async function loadPeak(sinceMs: number): Promise<number> {
   const rows = await query<{ peak: string | null }>(

@@ -47,7 +47,7 @@ export default async function Home() {
       </section>
 
       {/* Tabs / Bereiche */}
-      <section className="grid gap-6 sm:grid-cols-2">
+      <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <TabCard
           href="/stats"
           title="Server-Stats"
@@ -59,6 +59,12 @@ export default async function Home() {
           title="Item-Werte"
           description="Alle Verkaufspreise der dynamischen Wirtschaft mit Preisverlaufs-Graphen pro Item."
           icon="💰"
+        />
+        <TabCard
+          href="/players"
+          title="SMP-Spieler"
+          description="Alle Spieler des SMP mit Statistiken, Wirtschaftsdaten, Vitalwerten und Spielprofil."
+          icon="👥"
         />
       </section>
 

@@ -115,6 +115,27 @@ selbstständig.
 
 ## 7. Updates einspielen
 
+Das `deploy.sh`-Script im Projektverzeichnis erledigt alles automatisch:
+
+```bash
+# Einmalig ausführbar machen (nach dem ersten Clone):
+chmod +x /opt/trycityweb/deploy.sh
+
+# Jedes Mal wenn du updaten willst:
+/opt/trycityweb/deploy.sh
+```
+
+Das Script macht der Reihe nach:
+1. Lokale Änderungen temporär sichern (`git stash`)
+2. Neuen Code holen (`git pull`)
+3. Änderungen wiederherstellen (`git stash pop`)
+4. Pakete aktualisieren (`npm ci`)
+5. Produktions-Build (`npm run build`)
+6. Service neu starten (`systemctl restart trycityweb`)
+7. HTTP-Status prüfen → meldet ✅ oder ❌
+
+Manuell (falls nötig):
+
 ```bash
 cd /opt/trycityweb
 git pull
