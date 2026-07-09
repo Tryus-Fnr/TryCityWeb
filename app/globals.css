@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: radial-gradient(1200px 500px at 50% -10%, #10251c 0%, #0a0a0b 55%) #0a0a0b;
+  color: #ededed;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.35);
+}
