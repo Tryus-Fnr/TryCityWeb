@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+
 type PlayerRow = {
   uuid: string;
   name: string;
@@ -39,25 +41,28 @@ type PlayerDetail = {
   tutorialProgress: number | null;
 };
 
+type ParsedItem = { id: string; count: number; customName?: string } | null;
+
+type InventoryData = {
+  inventory: ParsedItem[];
+  enderChest: ParsedItem[];
+  armor: ParsedItem[];
+  offhand: ParsedItem[];
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function fmtDuration(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  if (h >= 24) {
-    const d = Math.floor(h / 24);
-    const rh = h % 24;
-    return `${d}d ${rh}h`;
-  }
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h >= 24) { const d = Math.floor(h / 24); return `${d}d ${h % 24}h`; }
   return `${h}h ${m}m`;
 }
 
 function fmtDate(ms: number): string {
   if (!ms) return "–";
-  return new Date(ms).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return new Date(ms).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function fmtMoney(v: number | null): string {
@@ -65,30 +70,16 @@ function fmtMoney(v: number | null): string {
   return v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " $";
 }
 
-function StatusBadge({ status }: { status: string | null }) {
-  const isOnline = status === "ONLINE";
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-        isOnline
-          ? "bg-emerald-500/15 text-emerald-300"
-          : "bg-white/[0.06] text-neutral-400"
-      }`}
-    >
-      <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${
-          isOnline ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-neutral-500"
-        }`}
-      />
-      {isOnline ? "Online" : "Offline"}
-    </span>
-  );
+function materialToTexture(id: string): string {
+  return id.replace(/^minecraft:/, "");
 }
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function PlayerAvatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <Image
-      src={`https://crafatar.com/avatars/${encodeURIComponent(name)}?size=${size}&overlay`}
+      src={`https://mineskin.eu/helm/${encodeURIComponent(name)}`}
       alt={name}
       width={size}
       height={size}
@@ -98,179 +89,173 @@ function PlayerAvatar({ name, size = 32 }: { name: string; size?: number }) {
   );
 }
 
-function DetailPanel({ uuid, onClose }: { uuid: string; onClose: () => void }) {
-  const [detail, setDetail] = useState<PlayerDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function StatusBadge({ status }: { status: string | null }) {
+  const online = status === "ONLINE";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+      online ? "bg-emerald-500/15 text-emerald-300" : "bg-white/6 text-neutral-400"
+    }`}>
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${
+        online ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-neutral-500"
+      }`} />
+      {online ? "Online" : "Offline"}
+    </span>
+  );
+}
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetch(`/api/players/${uuid}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.ok) setDetail(d.player);
-        else setError(d.error ?? "Fehler");
-      })
-      .catch(() => setError("Netzwerkfehler"))
-      .finally(() => setLoading(false));
-  }, [uuid]);
+// ─── Inventory grid ──────────────────────────────────────────────────────────
+
+function ItemSlot({ item, slot }: { item: ParsedItem; slot: number }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!item) {
+    return (
+      <div
+        className="relative aspect-square w-full rounded border border-white/[0.08] bg-black/30"
+        title={`Slot ${slot}`}
+      />
+    );
+  }
+
+  const mat   = materialToTexture(item.id);
+  const label = item.customName ?? mat.replace(/_/g, " ");
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-y-auto rounded-2xl border border-white/10 bg-[#111112] shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center gap-4 border-b border-white/10 bg-[#111112] px-6 py-4">
-          {detail && (
-            <PlayerAvatar name={detail.name} size={48} />
-          )}
-          <div className="flex-1">
-            {detail ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold">{detail.name}</h2>
-                  <StatusBadge status={detail.status} />
-                </div>
-                <p className="mt-0.5 text-xs text-neutral-500 font-mono">{detail.uuid}</p>
-              </>
-            ) : (
-              <div className="h-6 w-40 rounded bg-white/5 animate-pulse" />
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="ml-auto rounded-lg p-2 text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-100"
-            aria-label="Schließen"
-          >
-            ✕
-          </button>
+    <div
+      className="group relative aspect-square w-full cursor-default overflow-hidden rounded border border-white/10 bg-black/40 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+      title={`${label}${item.count > 1 ? ` ×${item.count}` : ""}`}
+    >
+      {!imgError ? (
+        <Image
+          src={`https://mc-heads.net/item/${mat}`}
+          alt={label}
+          fill
+          sizes="40px"
+          className="object-contain p-0.5"
+          unoptimized
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center overflow-hidden p-0.5 text-center text-[8px] leading-tight text-neutral-500">
+          {mat.split("_").slice(-1)[0]}
         </div>
+      )}
+      {item.count > 1 && (
+        <span className="absolute bottom-0.5 right-0.5 text-[10px] font-bold leading-none text-white drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+          {item.count}
+        </span>
+      )}
+    </div>
+  );
+}
 
-        {/* Content */}
-        <div className="flex-1 p-6">
-          {loading ? (
-            <div className="flex h-48 items-center justify-center text-neutral-500">Lade…</div>
-          ) : error ? (
-            <div className="flex h-48 items-center justify-center text-red-400">{error}</div>
-          ) : detail ? (
-            <div className="flex flex-col gap-6">
-
-              {/* Server-Status */}
-              {detail.status && (
-                <Section title="Server">
-                  <StatGrid>
-                    <Stat label="Status">
-                      <StatusBadge status={detail.status} />
-                    </Stat>
-                    {detail.currentServer && (
-                      <Stat label="Aktueller Server" value={detail.currentServer} />
-                    )}
-                    {detail.lastServer && (
-                      <Stat label="Letzter Server" value={detail.lastServer} />
-                    )}
-                    {detail.gameMode && (
-                      <Stat label="Spielmodus" value={detail.gameMode} />
-                    )}
-                  </StatGrid>
-                </Section>
-              )}
-
-              {/* Vitalwerte */}
-              {detail.health !== null && (
-                <Section title="Vitalwerte">
-                  <StatGrid>
-                    <Stat label="❤ Leben">
-                      <div className="flex items-center gap-2">
-                        <span className="text-red-400 font-semibold">
-                          {detail.health?.toFixed(1)} / {detail.maxHealth?.toFixed(1)}
-                        </span>
-                        <div className="h-2 w-24 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-red-500"
-                            style={{
-                              width: `${
-                                detail.maxHealth
-                                  ? Math.min(100, ((detail.health ?? 0) / detail.maxHealth) * 100)
-                                  : 0
-                              }%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </Stat>
-                    <Stat label="🍖 Hunger" value={`${detail.foodLevel ?? "–"} / 20`} />
-                    <Stat label="✨ Level" value={String(detail.expLevel ?? "–")} />
-                    <Stat
-                      label="XP"
-                      value={
-                        detail.experience !== null
-                          ? `${(detail.experience * 100).toFixed(0)} %`
-                          : "–"
-                      }
-                    />
-                  </StatGrid>
-                </Section>
-              )}
-
-              {/* Wirtschaft */}
-              <Section title="Wirtschaft">
-                <StatGrid>
-                  <Stat label="💰 Guthaben" value={fmtMoney(detail.balance)} accent />
-                  <Stat label="🏦 Bankguthaben" value={fmtMoney(detail.bankBalance)} />
-                  <Stat label="🪙 Coins" value={detail.coins.toLocaleString("de-DE")} />
-                  <Stat label="💎 Gems" value={detail.gems.toLocaleString("de-DE")} />
-                  <Stat label="⭐ Stars" value={detail.stars.toLocaleString("de-DE")} />
-                </StatGrid>
-              </Section>
-
-              {/* Spielzeit & Verlauf */}
-              <Section title="Spielprofil">
-                <StatGrid>
-                  <Stat label="⏱ Spielzeit" value={fmtDuration(detail.onlineTime)} accent />
-                  <Stat label="📅 Erstmals gesehen" value={fmtDate(detail.firstJoin)} />
-                  <Stat label="🕐 Zuletzt online" value={fmtDate(detail.lastJoin)} />
-                  {detail.tutorialProgress !== null && (
-                    <Stat label="Tutorial" value={`${detail.tutorialProgress} %`} />
-                  )}
-                </StatGrid>
-              </Section>
-
-            </div>
-          ) : null}
-        </div>
+function InventoryGrid({ slots, cols = 9, label }: { slots: ParsedItem[]; cols?: number; label?: string }) {
+  return (
+    <div>
+      {label && <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">{label}</p>}
+      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+        {slots.map((item, i) => <ItemSlot key={i} item={item} slot={i} />)}
       </div>
     </div>
   );
 }
 
+function pad<T>(arr: T[], len: number, fill: T): T[] {
+  const out = [...arr];
+  while (out.length < len) out.push(fill);
+  return out.slice(0, len);
+}
+
+function InventoryView({ uuid }: { uuid: string }) {
+  const [invTab, setInvTab] = useState<"inv" | "ender">("inv");
+  const [data,    setData]  = useState<InventoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true); setError(null);
+    fetch(`/api/players/${uuid}/inventory`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setData(d); else setError(d.error ?? "Fehler"); })
+      .catch(() => setError("Netzwerkfehler"))
+      .finally(() => setLoading(false));
+  }, [uuid]);
+
+  if (loading) return <div className="py-8 text-center text-sm text-neutral-500">Lade Inventar…</div>;
+  if (error)   return <div className="py-8 text-center text-sm text-red-400">{error}</div>;
+  if (!data)   return null;
+
+  const inv    = pad(data.inventory,  36, null);
+  const main   = inv.slice(9, 36);
+  const hotbar = inv.slice(0, 9);
+  const ender  = pad(data.enderChest, 27, null);
+  const armorDisplay: ParsedItem[] = [
+    data.armor[3] ?? null,
+    data.armor[2] ?? null,
+    data.armor[1] ?? null,
+    data.armor[0] ?? null,
+  ];
+  const offhand: ParsedItem[] = [data.offhand[0] ?? null];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        {(["inv", "ender"] as const).map((k) => (
+          <button key={k} onClick={() => setInvTab(k)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              invTab === k ? "bg-emerald-500/15 text-emerald-300" : "border border-white/10 text-neutral-400 hover:bg-white/5"
+            }`}>
+            {k === "inv" ? "🎒 Inventar" : "📦 Enderchest"}
+          </button>
+        ))}
+      </div>
+
+      {invTab === "inv" ? (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 flex flex-col gap-3">
+          <div className="flex gap-1">
+            {/* Armor + offhand column */}
+            <div className="flex flex-col gap-1" style={{ width: "calc((100% - 8 * 0.25rem) / 9)" }}>
+              {armorDisplay.map((item, i) => <ItemSlot key={i} item={item} slot={36 + (3 - i)} />)}
+              <div className="mt-1"><ItemSlot item={offhand[0]} slot={40} /></div>
+            </div>
+            {/* Main 3×9 */}
+            <div className="flex-1">
+              <InventoryGrid slots={main} cols={9} />
+            </div>
+          </div>
+          <div className="border-t border-white/10 pt-3">
+            <InventoryGrid slots={hotbar} cols={9} label="Hotbar" />
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <InventoryGrid slots={ender} cols={9} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Detail panel ────────────────────────────────────────────────────────────
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-        {title}
-      </h3>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">{title}</h3>
       {children}
     </div>
   );
 }
 
 function StatGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{children}</div>;
+  return <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>;
 }
 
-function Stat({
-  label,
-  value,
-  accent = false,
-  children,
-}: {
-  label: string;
-  value?: string;
-  accent?: boolean;
-  children?: React.ReactNode;
+function Stat({ label, value, accent = false, children }: {
+  label: string; value?: string; accent?: boolean; children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-3">
+    <div className="rounded-xl border border-white/[0.07] bg-white/3 px-3 py-2.5">
       <div className="text-xs text-neutral-500">{label}</div>
       <div className={`mt-1 text-sm font-semibold ${accent ? "text-emerald-400" : "text-neutral-100"}`}>
         {children ?? (value ?? "–")}
@@ -279,94 +264,179 @@ function Stat({
   );
 }
 
-export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
-  const [players, setPlayers] = useState<PlayerRow[]>(initial);
-  const [search, setSearch] = useState("");
-  const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+function DetailPanel({ uuid, name, onClose }: { uuid: string; name: string; onClose: () => void }) {
+  const [detail,  setDetail]  = useState<PlayerDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+  const [tab,     setTab]     = useState<"stats" | "inv">("stats");
 
-  // Reload list from API to stay fresh
   useEffect(() => {
-    setLoading(true);
+    setLoading(true); setError(null);
+    fetch(`/api/players/${uuid}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setDetail(d.player); else setError(d.error ?? "Fehler"); })
+      .catch(() => setError("Netzwerkfehler"))
+      .finally(() => setLoading(false));
+  }, [uuid]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111112] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center gap-4 border-b border-white/10 px-6 py-4">
+          <PlayerAvatar name={name} size={48} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-bold">{name}</h2>
+              {detail && <StatusBadge status={detail.status} />}
+            </div>
+            <p className="mt-0.5 font-mono text-xs text-neutral-500 truncate">{uuid}</p>
+          </div>
+          <button onClick={onClose} className="ml-2 flex-shrink-0 rounded-lg p-2 text-neutral-400 hover:bg-white/5 hover:text-neutral-100" aria-label="Schließen">✕</button>
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-2 border-b border-white/10 px-6 py-2">
+          {([["stats", "📊 Stats"], ["inv", "🎒 Inventar"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                tab === k ? "bg-emerald-500/15 text-emerald-300" : "text-neutral-400 hover:bg-white/5"
+              }`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex h-48 items-center justify-center text-neutral-500">Lade…</div>
+          ) : error ? (
+            <div className="flex h-48 items-center justify-center text-red-400">{error}</div>
+          ) : detail && tab === "stats" ? (
+            <div className="flex flex-col gap-6">
+              {detail.status && (
+                <Section title="Server">
+                  <StatGrid>
+                    <Stat label="Status"><StatusBadge status={detail.status} /></Stat>
+                    {detail.currentServer && <Stat label="Aktueller Server" value={detail.currentServer} />}
+                    {detail.lastServer    && <Stat label="Letzter Server"   value={detail.lastServer}    />}
+                    {detail.gameMode      && <Stat label="Spielmodus"       value={detail.gameMode}      />}
+                  </StatGrid>
+                </Section>
+              )}
+              {detail.health !== null && (
+                <Section title="Vitalwerte">
+                  <StatGrid>
+                    <Stat label="❤ Leben">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-red-400">{detail.health?.toFixed(1)} / {detail.maxHealth?.toFixed(1)}</span>
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10">
+                          <div className="h-full rounded-full bg-red-500" style={{ width: `${detail.maxHealth ? Math.min(100, ((detail.health ?? 0) / detail.maxHealth) * 100) : 0}%` }} />
+                        </div>
+                      </div>
+                    </Stat>
+                    <Stat label="🍖 Hunger" value={`${detail.foodLevel ?? "–"} / 20`} />
+                    <Stat label="✨ Level"  value={String(detail.expLevel ?? "–")} />
+                    <Stat label="XP" value={detail.experience !== null ? `${(detail.experience * 100).toFixed(0)} %` : "–"} />
+                  </StatGrid>
+                </Section>
+              )}
+              <Section title="Wirtschaft">
+                <StatGrid>
+                  <Stat label="💰 Guthaben"    value={fmtMoney(detail.balance)}      accent />
+                  <Stat label="🏦 Bankguthaben" value={fmtMoney(detail.bankBalance)}         />
+                  <Stat label="🪙 Coins"        value={detail.coins.toLocaleString("de-DE")} />
+                  <Stat label="💎 Gems"         value={detail.gems.toLocaleString("de-DE")}  />
+                  <Stat label="⭐ Stars"        value={detail.stars.toLocaleString("de-DE")} />
+                </StatGrid>
+              </Section>
+              <Section title="Spielprofil">
+                <StatGrid>
+                  <Stat label="⏱ Spielzeit"        value={fmtDuration(detail.onlineTime)} accent />
+                  <Stat label="📅 Erstmals gesehen" value={fmtDate(detail.firstJoin)}             />
+                  <Stat label="🕐 Zuletzt online"   value={fmtDate(detail.lastJoin)}              />
+                  {detail.tutorialProgress !== null && <Stat label="Tutorial" value={`${detail.tutorialProgress} %`} />}
+                </StatGrid>
+              </Section>
+            </div>
+          ) : tab === "inv" ? (
+            <InventoryView uuid={uuid} />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main export ─────────────────────────────────────────────────────────────
+
+export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
+  const [players,  setPlayers]  = useState<PlayerRow[]>(initial);
+  const [search,   setSearch]   = useState("");
+  const [selected, setSelected] = useState<{ uuid: string; name: string } | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+
+  useEffect(() => {
+    setListLoading(true);
     fetch("/api/players")
       .then((r) => r.json())
-      .then((d) => {
-        if (d.ok) setPlayers(d.players);
-      })
+      .then((d) => { if (d.ok) setPlayers(d.players); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => setListLoading(false));
   }, []);
 
-  const filtered = players.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = players.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="flex flex-col gap-6">
       {/* Suchfeld */}
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">
-          🔍
-        </span>
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Spieler suchen…"
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-9 pr-4 text-sm text-neutral-100 placeholder-neutral-500 outline-none ring-0 transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06]"
+          className="w-full rounded-xl border border-white/10 bg-white/4 py-2.5 pl-9 pr-4 text-sm text-neutral-100 placeholder-neutral-500 outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/6"
         />
         {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
-          >
-            ✕
-          </button>
+          <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">✕</button>
         )}
       </div>
 
-      {/* Ergebniszahl */}
+      {/* Count */}
       <p className="text-sm text-neutral-500">
-        {loading
-          ? "Lade…"
-          : `${filtered.length} von ${players.length} Spieler${players.length !== 1 ? "n" : ""}`}
+        {listLoading ? "Lade…" : `${filtered.length} von ${players.length} Spieler${players.length !== 1 ? "n" : ""}`}
         {search && ` – Suche nach „${search}"`}
       </p>
 
-      {/* Spielerliste */}
-      {filtered.length === 0 && !loading ? (
+      {/* Spieler-Grid */}
+      {filtered.length === 0 && !listLoading ? (
         <div className="py-16 text-center text-neutral-500">Kein Spieler gefunden.</div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (
             <button
               key={p.uuid}
-              onClick={() => setSelectedUuid(p.uuid)}
-              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-400/[0.04]"
+              onClick={() => setSelected({ uuid: p.uuid, name: p.name })}
+              className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-400/4"
             >
               <PlayerAvatar name={p.name} size={40} />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold group-hover:text-emerald-300">
-                  {p.name}
-                </div>
-                <div className="mt-0.5 text-xs text-neutral-500">
-                  ⏱ {fmtDuration(p.onlineTime)}
-                  {" · "}
-                  🪙 {p.coins.toLocaleString("de-DE")}
-                </div>
-                <div className="mt-0.5 text-xs text-neutral-600">
-                  Zuletzt: {fmtDate(p.lastJoin)}
-                </div>
+                <div className="truncate font-semibold group-hover:text-emerald-300">{p.name}</div>
+                <div className="mt-0.5 text-xs text-neutral-500">⏱ {fmtDuration(p.onlineTime)}</div>
+                <div className="mt-0.5 text-xs text-neutral-600">Zuletzt: {fmtDate(p.lastJoin)}</div>
               </div>
-              <span className="text-xs text-neutral-600 group-hover:text-emerald-400">→</span>
+              <span className="flex-shrink-0 text-xs text-neutral-600 group-hover:text-emerald-400">→</span>
             </button>
           ))}
         </div>
       )}
 
       {/* Detail-Modal */}
-      {selectedUuid && (
-        <DetailPanel uuid={selectedUuid} onClose={() => setSelectedUuid(null)} />
+      {selected && (
+        <DetailPanel uuid={selected.uuid} name={selected.name} onClose={() => setSelected(null)} />
       )}
     </div>
   );

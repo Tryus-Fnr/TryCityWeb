@@ -199,6 +199,24 @@ export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint
   return result;
 }
 
+// ─── SMP-Spieler Inventar ───────────────────────────────────────────────────
+
+export type RawInventoryRow = {
+  inventory: string | null;
+  ender_chest: string | null;
+  armor: string | null;
+  offhand: string | null;
+};
+
+export async function loadPlayerRawInventory(uuid: string): Promise<RawInventoryRow | null> {
+  const rows = await query<RawInventoryRow>(
+    `SELECT inventory, ender_chest, armor, offhand
+     FROM smpg_player_data WHERE uuid = ? LIMIT 1`,
+    [uuid]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
+
 // ─── SMP-Spieler ───────────────────────────────────────────────────────────
 
 export type PlayerRow = {
