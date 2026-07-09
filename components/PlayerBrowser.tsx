@@ -88,10 +88,10 @@ function StatusBadge({ status }: { status: string | null }) {
   const online = status === "ONLINE";
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-      online ? "bg-emerald-500/15 text-emerald-300" : "bg-white/6 text-neutral-400"
+      online ? "bg-sky-500/15 text-sky-300" : "bg-white/6 text-neutral-400"
     }`}>
       <span className={`inline-block h-1.5 w-1.5 rounded-full ${
-        online ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-neutral-500"
+        online ? "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]" : "bg-neutral-500"
       }`} />
       {online ? "Online" : "Offline"}
     </span>
@@ -115,7 +115,7 @@ function ItemSlot({ item, slot }: { item: ParsedItem; slot: number }) {
 
   return (
     <div
-      className="group relative aspect-square w-full cursor-default overflow-hidden rounded border border-white/10 bg-black/40 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+      className="group relative aspect-square w-full cursor-default overflow-hidden rounded border border-white/10 bg-black/40 transition-colors hover:border-sky-400/40 hover:bg-sky-400/5"
       title={`${label}${item.count > 1 ? ` ×${item.count}` : ""}`}
     >
       <div className="flex h-full items-center justify-center p-0.5">
@@ -184,7 +184,7 @@ function InventoryView({ uuid }: { uuid: string }) {
         {(["inv", "ender"] as const).map((k) => (
           <button key={k} onClick={() => setInvTab(k)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-              invTab === k ? "bg-emerald-500/15 text-emerald-300" : "border border-white/10 text-neutral-400 hover:bg-white/5"
+              invTab === k ? "bg-sky-500/15 text-sky-300" : "border border-white/10 text-neutral-400 hover:bg-white/5"
             }`}>
             {k === "inv" ? "🎒 Inventar" : "📦 Enderchest"}
           </button>
@@ -238,7 +238,7 @@ function Stat({ label, value, accent = false, children }: {
   return (
     <div className="rounded-xl border border-white/[0.07] bg-white/3 px-3 py-2.5">
       <div className="text-xs text-neutral-500">{label}</div>
-      <div className={`mt-1 text-sm font-semibold ${accent ? "text-emerald-400" : "text-neutral-100"}`}>
+      <div className={`mt-1 text-sm font-semibold ${accent ? "text-sky-400" : "text-neutral-100"}`}>
         {children ?? (value ?? "–")}
       </div>
     </div>
@@ -281,7 +281,7 @@ function DetailPanel({ uuid, name, onClose }: { uuid: string; name: string; onCl
           {([["stats", "📊 Stats"], ["inv", "🎒 Inventar"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                tab === k ? "bg-emerald-500/15 text-emerald-300" : "text-neutral-400 hover:bg-white/5"
+                tab === k ? "bg-sky-500/15 text-sky-300" : "text-neutral-400 hover:bg-white/5"
               }`}>
               {l}
             </button>
@@ -418,7 +418,7 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Spieler suchen…"
-          className="w-full rounded-xl border border-white/10 bg-white/4 py-2.5 pl-9 pr-4 text-sm text-neutral-100 placeholder-neutral-500 outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/6"
+          className="w-full rounded-xl border border-white/10 bg-white/4 py-2.5 pl-9 pr-4 text-sm text-neutral-100 placeholder-neutral-500 outline-none transition-colors focus:border-sky-400/50 focus:bg-white/6"
         />
         {search && (
           <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300">✕</button>
@@ -441,15 +441,15 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
               <button
                 key={p.uuid}
                 onClick={() => setSelected({ uuid: p.uuid, name: p.name })}
-                className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-400/4"
+                className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/3 p-4 text-left transition-colors hover:border-sky-400/30 hover:bg-sky-400/4"
               >
                 <PlayerAvatar name={p.name} size={40} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold group-hover:text-emerald-300">{p.name}</div>
+                  <div className="truncate font-semibold group-hover:text-sky-300">{p.name}</div>
                   <div className="mt-0.5 text-xs text-neutral-500">⏱ {fmtDuration(p.onlineTime)}</div>
                   <div className="mt-0.5 text-xs text-neutral-600">Zuletzt: {fmtDate(p.lastJoin)}</div>
                 </div>
-                <span className="shrink-0 text-xs text-neutral-600 group-hover:text-emerald-400">→</span>
+                <span className="shrink-0 text-xs text-neutral-600 group-hover:text-sky-400">→</span>
               </button>
             ))}
           </div>
@@ -468,10 +468,4 @@ export default function PlayerBrowser({ initial }: { initial: PlayerRow[] }) {
     </div>
   );
 }
-
-
-
-
-
-
 

@@ -83,7 +83,7 @@ export default function ItemBrowser() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Item suchen…"
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm outline-none placeholder:text-neutral-600 focus:border-emerald-400/50 sm:max-w-xs"
+          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm outline-none placeholder:text-neutral-600 focus:border-sky-400/50 sm:max-w-xs"
         />
         <div className="flex flex-wrap gap-2">
           {SORTS.map((s) => (
@@ -92,7 +92,7 @@ export default function ItemBrowser() {
               onClick={() => setSort(s.key)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 sort === s.key
-                  ? "bg-emerald-500/15 text-emerald-300"
+                  ? "bg-sky-500/15 text-sky-300"
                   : "border border-white/10 text-neutral-400 hover:bg-white/5"
               }`}
             >
@@ -127,21 +127,21 @@ export default function ItemBrowser() {
                 <Link
                   key={item.material}
                   href={`/items/${item.material.toLowerCase()}`}
-                  className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+                  className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-sky-400/40 hover:bg-sky-400/5"
                 >
                   <div className="flex items-center gap-2.5">
                     <ItemIcon material={item.material} size={28} className="shrink-0" />
-                    <div className="truncate text-sm font-semibold group-hover:text-emerald-300">
+                    <div className="truncate text-sm font-semibold group-hover:text-sky-300">
                       {formatMaterialName(item.material)}
                     </div>
                   </div>
                   {spark.length > 1 && <MiniSparkline points={spark} className="mt-3" />}
-                  <div className="mt-2 text-lg font-bold text-emerald-400">
+                  <div className="mt-2 text-lg font-bold text-sky-400">
                     ${formatMoney(item.price)}
                   </div>
                   <div className="mt-1 flex items-center justify-between text-xs">
                     {change !== null && Math.abs(change) >= 0.05 ? (
-                      <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
+                      <span className={change > 0 ? "text-sky-400" : "text-red-400"}>
                         {formatPct(change)} <span className="text-neutral-600">24h</span>
                       </span>
                     ) : (
@@ -249,4 +249,3 @@ function MiniSparkline({
     </svg>
   );
 }
-

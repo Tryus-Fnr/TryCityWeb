@@ -11,12 +11,9 @@
 
 body {
   background-color: #0a0a0b;
-  background-image: radial-gradient(ellipse 1400px 600px at 50% 0%, #10251c 0%, transparent 70%);
-  background-repeat: no-repeat;
-  background-attachment: fixed;
   color: #ededed;
 }
 
 ::selection {
-  background: rgba(16, 185, 129, 0.35);
+  background: rgba(56, 189, 248, 0.35);
 }

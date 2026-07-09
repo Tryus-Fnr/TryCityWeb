@@ -74,7 +74,7 @@ export default function PlayerStats() {
             onClick={() => setRange(r.key)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               range === r.key
-                ? "bg-emerald-500/15 text-emerald-300"
+                ? "bg-sky-500/15 text-sky-300"
                 : "border border-white/10 text-neutral-400 hover:bg-white/5"
             }`}
           >
@@ -176,7 +176,7 @@ export default function PlayerStats() {
                     <td className="px-4 py-3">
                       <div className="h-2 w-full max-w-48 overflow-hidden rounded-full bg-white/10">
                         <div
-                          className="h-full rounded-full bg-emerald-400"
+                          className="h-full rounded-full bg-sky-400"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -195,7 +195,7 @@ export default function PlayerStats() {
 function Card({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
-      <div className={`text-3xl font-bold ${accent ? "text-emerald-400" : ""}`}>{value}</div>
+      <div className={`text-3xl font-bold ${accent ? "text-sky-400" : ""}`}>{value}</div>
       <div className="mt-1 text-sm text-neutral-500">{label}</div>
     </div>
   );

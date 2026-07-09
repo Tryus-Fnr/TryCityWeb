@@ -30,7 +30,7 @@ export default async function Home() {
       {/* Hero */}
       <section className="pt-10 text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-          Try<span className="text-emerald-400">City</span>
+          TryCity
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-lg text-neutral-400">
           Live-Statistiken des TryCity-Netzwerks – Spielerzahlen, Item-Preise und
@@ -89,7 +89,7 @@ function StatCard({
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
-      <div className={`text-3xl font-bold ${accent ? "text-emerald-400" : "text-neutral-100"}`}>
+      <div className={`text-3xl font-bold ${accent ? "text-sky-400" : "text-neutral-100"}`}>
         {value}
       </div>
       <div className="mt-1 text-sm text-neutral-500">{label}</div>
@@ -111,12 +111,12 @@ function TabCard({
   return (
     <Link
       href={href}
-      className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/5"
+      className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-sky-400/40 hover:bg-sky-400/5"
     >
       <div className="text-3xl">{icon}</div>
-      <h2 className="mt-3 text-xl font-bold group-hover:text-emerald-300">{title}</h2>
+      <h2 className="mt-3 text-xl font-bold group-hover:text-sky-300">{title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-neutral-400">{description}</p>
-      <span className="mt-4 inline-block text-sm font-medium text-emerald-400">
+      <span className="mt-4 inline-block text-sm font-medium text-sky-400">
         Öffnen →
       </span>
     </Link>

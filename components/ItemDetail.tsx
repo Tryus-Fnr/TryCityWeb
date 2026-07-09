@@ -87,7 +87,7 @@ export default function ItemDetail({ material }: { material: string }) {
         </div>
         <div className="text-right">
           <div className="text-sm text-neutral-500">Aktueller Verkaufspreis</div>
-          <div className="text-4xl font-extrabold text-emerald-400">
+          <div className="text-4xl font-extrabold text-sky-400">
             {data?.currentPrice !== null && data?.currentPrice !== undefined
               ? `$${formatMoney(data.currentPrice)}`
               : "–"}
@@ -113,7 +113,7 @@ export default function ItemDetail({ material }: { material: string }) {
             onClick={() => setRange(r.key)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
               range === r.key
-                ? "bg-emerald-500/15 text-emerald-300"
+                ? "bg-sky-500/15 text-sky-300"
                 : "border border-white/10 text-neutral-400 hover:bg-white/5"
             }`}
           >
