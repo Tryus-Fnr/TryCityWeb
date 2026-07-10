@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomInt } from "crypto";
 import { exec } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
+import { isWebLoginDisabled } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,15 @@ export async function POST(req: Request) {
   const code = String(randomInt(100000, 1000000)); // 6-stellig
 
   try {
+    // Prüfen, ob der Spieler den Web-Login deaktiviert hat
+    const loginDisabled = await isWebLoginDisabled(name);
+    if (loginDisabled) {
+      return NextResponse.json(
+        { ok: false, error: "Dieser Spieler hat den Web-Login deaktiviert." },
+        { status: 403 }
+      );
+    }
+
     // alte, unbenutzte Codes für den Namen entwerten
     await exec(
       "UPDATE smpg_web_login_codes SET used = 1 WHERE player_name = ? AND used = 0",

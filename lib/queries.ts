@@ -515,6 +515,96 @@ export async function loadRegions(): Promise<RegionRow[]> {
   }));
 }
 
+// ─── LuckPerms Admin-Check ─────────────────────────────────────────────────
+
+/**
+ * Prüft, ob ein Spieler (per UUID) die `*`-Berechtigung hat –
+ * direkt oder über seine Gruppe(n) (bis 2 Ebenen Vererbung).
+ * LuckPerms-Tabellen: luckperms_user_permissions, luckperms_group_permissions
+ */
+export async function loadIsAdmin(uuid: string): Promise<boolean> {
+  try {
+    const rows = await query<{ found: number }>(
+      `SELECT 1 AS found
+       FROM luckperms_user_permissions
+       WHERE uuid = ? AND permission = '*' AND value = 1
+         AND (expiry = 0 OR expiry > UNIX_TIMESTAMP())
+
+       UNION
+
+       SELECT 1 FROM luckperms_user_permissions u
+       JOIN luckperms_group_permissions g
+         ON g.name = SUBSTRING(u.permission, 7)
+       WHERE u.uuid = ? AND u.permission LIKE 'group.%' AND u.value = 1
+         AND (u.expiry = 0 OR u.expiry > UNIX_TIMESTAMP())
+         AND g.permission = '*' AND g.value = 1
+         AND (g.expiry = 0 OR g.expiry > UNIX_TIMESTAMP())
+
+       UNION
+
+       SELECT 1 FROM luckperms_user_permissions u
+       JOIN luckperms_group_permissions g1
+         ON g1.name = SUBSTRING(u.permission, 7)
+       JOIN luckperms_group_permissions g2
+         ON g2.name = SUBSTRING(g1.permission, 7)
+       WHERE u.uuid = ? AND u.permission LIKE 'group.%' AND u.value = 1
+         AND (u.expiry = 0 OR u.expiry > UNIX_TIMESTAMP())
+         AND g1.permission LIKE 'group.%' AND g1.value = 1
+         AND (g1.expiry = 0 OR g1.expiry > UNIX_TIMESTAMP())
+         AND g2.permission = '*' AND g2.value = 1
+         AND (g2.expiry = 0 OR g2.expiry > UNIX_TIMESTAMP())
+
+       LIMIT 1`,
+      [uuid, uuid, uuid]
+    );
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Web-Login-Sitzungs-Widerruf ───────────────────────────────────────────
+
+/**
+ * Prüft, ob die Sitzung widerrufen wurde.
+ * Gibt true zurück, wenn die Sitzung VOR dem letzten Widerruf ausgestellt wurde.
+ */
+export async function isSessionRevoked(uuid: string, issuedAtSec: number): Promise<boolean> {
+  try {
+    const rows = await query<{ revoked_before: string }>(
+      `SELECT revoked_before FROM smpg_web_session_revoke WHERE uuid = ? LIMIT 1`,
+      [uuid]
+    );
+    if (rows.length === 0) return false;
+    return issuedAtSec <= Number(rows[0].revoked_before);
+  } catch {
+    // Tabelle existiert noch nicht oder DB-Fehler → Sitzung als gültig behandeln
+    return false;
+  }
+}
+
+// ─── Web-Login Deaktiviert-Check ───────────────────────────────────────────
+
+/**
+ * Prüft, ob ein Spieler den Web-Login für seinen Account deaktiviert hat.
+ * Gibt true zurück, wenn der Web-Login deaktiviert ist.
+ */
+export async function isWebLoginDisabled(playerName: string): Promise<boolean> {
+  try {
+    const rows = await query<{ setting_value: number }>(
+      `SELECT s.setting_value
+       FROM tryus_players p
+       JOIN tryus_player_settings s ON s.player_uuid = p.uuid
+       WHERE LOWER(p.name) = LOWER(?) AND s.setting_key = 'web_login_disabled'
+       LIMIT 1`,
+      [playerName]
+    );
+    return rows.length > 0 && rows[0].setting_value === 1;
+  } catch {
+    return false;
+  }
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Höchste Gesamt-Spielerzahl seit `sinceMs`. */

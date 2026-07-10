@@ -4,17 +4,19 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 type Props = {
-  session: { name: string } | null;
+  session: { name: string; isAdmin: boolean } | null;
 };
 
-const TABS = [
-  { href: "/", label: "Startseite" },
-  { href: "/stats", label: "Server-Stats" },
-  { href: "/servermap", label: "Server-Karte" },
+const PUBLIC_TABS = [
   { href: "/items", label: "Item-Werte" },
   { href: "/auction", label: "Auktionshaus" },
   { href: "/orders", label: "Orders" },
   { href: "/bounties", label: "Kopfgelder" },
+];
+
+const ADMIN_TABS = [
+  { href: "/stats", label: "Server-Stats" },
+  { href: "/servermap", label: "Server-Karte" },
   { href: "/players", label: "SMP-Spieler" },
 ];
 
@@ -31,6 +33,10 @@ export default function Navbar({ session }: Props) {
     return href === "/" ? pathname === "/" : pathname.startsWith(href);
   }
 
+  const tabs = session?.isAdmin
+    ? [{ href: "/", label: "Startseite" }, ...PUBLIC_TABS, ...ADMIN_TABS]
+    : [{ href: "/", label: "Startseite" }, ...PUBLIC_TABS];
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur-md">
       <nav className="mx-auto flex h-14 max-w-6xl items-center gap-1 px-4">
@@ -39,7 +45,7 @@ export default function Navbar({ session }: Props) {
         </Link>
 
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <Link
               key={tab.href}
               href={tab.href}
@@ -60,6 +66,11 @@ export default function Navbar({ session }: Props) {
               <span className="hidden text-sm text-neutral-300 sm:inline">
                 <span className="text-neutral-500">Angemeldet als </span>
                 <span className="font-semibold text-sky-300">{session.name}</span>
+                {session.isAdmin && (
+                  <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-400">
+                    Admin
+                  </span>
+                )}
               </span>
               <button
                 onClick={logout}

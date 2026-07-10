@@ -52,43 +52,36 @@ export default async function Home() {
           href="/stats"
           title="Server-Stats"
           description="Spielerzahlen-Verlauf über 24 Stunden, 7 oder 30 Tage – gesamt und pro Server."
-          icon="📈"
         />
         <TabCard
           href="/servermap"
           title="Server-Karte"
           description="Interaktive zoombare Karte aller SMP-Server-Regionen mit Koordinaten und Status."
-          icon="🗺"
         />
         <TabCard
           href="/items"
           title="Item-Werte"
           description="Alle Verkaufspreise der dynamischen Wirtschaft mit Preisverlaufs-Graphen pro Item."
-          icon="💰"
         />
         <TabCard
           href="/auction"
           title="Auktionshaus"
           description="Aktive Sofortkäufe und laufende Auktionen von Spielern – filterbar und sortierbar."
-          icon="🏷"
         />
         <TabCard
           href="/orders"
           title="Orders"
           description="Offene Kaufaufträge: liefere Items an Spieler und verdiene Coins."
-          icon="📦"
         />
         <TabCard
           href="/bounties"
           title="Kopfgelder"
           description="Aktive Kopfgelder auf Spieler – wer steht ganz oben auf der Liste?"
-          icon="💀"
         />
         <TabCard
           href="/players"
           title="SMP-Spieler"
           description="Alle Spieler des SMP mit Statistiken, Wirtschaftsdaten, Vitalwerten und Spielprofil."
-          icon="👥"
         />
       </section>
 
@@ -125,20 +118,17 @@ function TabCard({
   href,
   title,
   description,
-  icon,
 }: {
   href: string;
   title: string;
   description: string;
-  icon: string;
 }) {
   return (
     <Link
       href={href}
       className="group rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-colors hover:border-sky-400/40 hover:bg-sky-400/5"
     >
-      <div className="text-3xl">{icon}</div>
-      <h2 className="mt-3 text-xl font-bold group-hover:text-sky-300">{title}</h2>
+      <h2 className="text-xl font-bold group-hover:text-sky-300">{title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-neutral-400">{description}</p>
       <span className="mt-4 inline-block text-sm font-medium text-sky-400">
         Öffnen →

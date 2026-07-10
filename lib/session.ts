@@ -11,6 +11,8 @@ const SESSION_DAYS = 30;
 export type Session = {
   name: string;
   uuid: string | null;
+  /** JWT iat (Sekunden seit Epoch) – für Sitzungs-Widerruf. */
+  issuedAt: number;
 };
 
 function secret(): Uint8Array {
@@ -46,6 +48,7 @@ export async function getSession(): Promise<Session | null> {
     return {
       name: payload.name,
       uuid: typeof payload.uuid === "string" ? payload.uuid : null,
+      issuedAt: typeof payload.iat === "number" ? payload.iat : 0,
     };
   } catch {
     return null;
