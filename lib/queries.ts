@@ -348,6 +348,173 @@ export async function loadPlayerDetail(uuid: string): Promise<PlayerDetail | nul
   };
 }
 
+// ─── Auktionshaus ──────────────────────────────────────────────────────────
+
+export type AuctionRow = {
+  id: string;
+  sellerName: string;
+  itemName: string | null;
+  itemMaterial: string;
+  category: string;
+  listingType: string;
+  price: number;
+  currentBid: number;
+  currentBidderName: string | null;
+  endTime: number | null;
+  createdAt: number;
+  status: string;
+};
+
+export async function loadActiveAuctions(): Promise<AuctionRow[]> {
+  const rows = await query<{
+    id: string;
+    seller_name: string;
+    item_name: string | null;
+    item_material: string;
+    category: string;
+    listing_type: string;
+    price: string;
+    current_bid: string;
+    current_bidder_name: string | null;
+    end_time: string | null;
+    created_at: string;
+    status: string;
+  }>(
+    `SELECT id, seller_name, item_name, item_material, category, listing_type,
+            price, current_bid, current_bidder_name, end_time, created_at, status
+     FROM smpg_auction_listings
+     WHERE status = 'ACTIVE'
+     ORDER BY created_at DESC
+     LIMIT 500`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    sellerName: r.seller_name,
+    itemName: r.item_name,
+    itemMaterial: r.item_material,
+    category: r.category,
+    listingType: r.listing_type,
+    price: Number(r.price),
+    currentBid: Number(r.current_bid),
+    currentBidderName: r.current_bidder_name,
+    endTime: r.end_time !== null ? Number(r.end_time) : null,
+    createdAt: Number(r.created_at),
+    status: r.status,
+  }));
+}
+
+// ─── Orders ────────────────────────────────────────────────────────────────
+
+export type OrderRow = {
+  id: string;
+  ownerName: string;
+  material: string;
+  itemName: string | null;
+  amount: number;
+  pricePerItem: number;
+  delivered: number;
+  collected: number;
+  paidOut: number;
+  createdAt: number;
+  status: string;
+};
+
+export async function loadOpenOrders(): Promise<OrderRow[]> {
+  const rows = await query<{
+    id: string;
+    owner_name: string;
+    material: string;
+    item_name: string | null;
+    amount: string;
+    price_per_item: string;
+    delivered: string;
+    collected: string;
+    paid_out: string;
+    created_at: string;
+    status: string;
+  }>(
+    `SELECT id, owner_name, material, item_name, amount, price_per_item,
+            delivered, collected, paid_out, created_at, status
+     FROM smpg_orders
+     WHERE status = 'OPEN'
+     ORDER BY created_at DESC
+     LIMIT 500`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    ownerName: r.owner_name,
+    material: r.material,
+    itemName: r.item_name,
+    amount: Number(r.amount),
+    pricePerItem: Number(r.price_per_item),
+    delivered: Number(r.delivered),
+    collected: Number(r.collected),
+    paidOut: Number(r.paid_out),
+    createdAt: Number(r.created_at),
+    status: r.status,
+  }));
+}
+
+// ─── Bounties (Kopfgeld) ────────────────────────────────────────────────────
+
+export type BountyRow = {
+  targetUuid: string;
+  targetName: string;
+  amount: number;
+};
+
+export async function loadBounties(): Promise<BountyRow[]> {
+  const rows = await query<{
+    target_uuid: string;
+    target_name: string;
+    amount: string;
+  }>(
+    `SELECT target_uuid, target_name, amount
+     FROM smpg_bounties
+     WHERE amount > 0
+     ORDER BY amount DESC`
+  );
+  return rows.map((r) => ({
+    targetUuid: r.target_uuid,
+    targetName: r.target_name,
+    amount: Number(r.amount),
+  }));
+}
+
+// ─── Region-Registry (Server-Karte) ────────────────────────────────────────
+
+export type RegionRow = {
+  regionKey: string;
+  rx: number;
+  rz: number;
+  serverName: string;
+  lastHeartbeat: number;
+  regionSize: number;
+};
+
+export async function loadRegions(): Promise<RegionRow[]> {
+  const rows = await query<{
+    region_key: string;
+    rx: string;
+    rz: string;
+    server_name: string;
+    last_heartbeat: string;
+    region_size: string;
+  }>(
+    `SELECT region_key, rx, rz, server_name, last_heartbeat, region_size
+     FROM smp_region_registry
+     ORDER BY rx ASC, rz ASC`
+  );
+  return rows.map((r) => ({
+    regionKey: r.region_key,
+    rx: Number(r.rx),
+    rz: Number(r.rz),
+    serverName: r.server_name,
+    lastHeartbeat: Number(r.last_heartbeat),
+    regionSize: Number(r.region_size),
+  }));
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Höchste Gesamt-Spielerzahl seit `sinceMs`. */

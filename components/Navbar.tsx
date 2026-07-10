@@ -10,7 +10,11 @@ type Props = {
 const TABS = [
   { href: "/", label: "Startseite" },
   { href: "/stats", label: "Server-Stats" },
+  { href: "/servermap", label: "Server-Karte" },
   { href: "/items", label: "Item-Werte" },
+  { href: "/auction", label: "Auktionshaus" },
+  { href: "/orders", label: "Orders" },
+  { href: "/bounties", label: "Kopfgelder" },
   { href: "/players", label: "SMP-Spieler" },
 ];
 
@@ -34,12 +38,12 @@ export default function Navbar({ session }: Props) {
           <span className="text-lg">TryCity</span>
         </Link>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
           {TABS.map((tab) => (
             <Link
               key={tab.href}
               href={tab.href}
-              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 isActive(tab.href)
                   ? "bg-sky-500/15 text-sky-300"
                   : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"

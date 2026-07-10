@@ -55,10 +55,34 @@ export default async function Home() {
           icon="📈"
         />
         <TabCard
+          href="/servermap"
+          title="Server-Karte"
+          description="Interaktive zoombare Karte aller SMP-Server-Regionen mit Koordinaten und Status."
+          icon="🗺"
+        />
+        <TabCard
           href="/items"
           title="Item-Werte"
           description="Alle Verkaufspreise der dynamischen Wirtschaft mit Preisverlaufs-Graphen pro Item."
           icon="💰"
+        />
+        <TabCard
+          href="/auction"
+          title="Auktionshaus"
+          description="Aktive Sofortkäufe und laufende Auktionen von Spielern – filterbar und sortierbar."
+          icon="🏷"
+        />
+        <TabCard
+          href="/orders"
+          title="Orders"
+          description="Offene Kaufaufträge: liefere Items an Spieler und verdiene Coins."
+          icon="📦"
+        />
+        <TabCard
+          href="/bounties"
+          title="Kopfgelder"
+          description="Aktive Kopfgelder auf Spieler – wer steht ganz oben auf der Liste?"
+          icon="💀"
         />
         <TabCard
           href="/players"
