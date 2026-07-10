@@ -79,24 +79,6 @@ const features: Feature[] = [
     accentText: "text-green-400",
     accentBg: "bg-green-400/10",
   },
-  {
-    title: "Server-Statistiken",
-    description:
-      "Echtzeit-Übersicht aller aktiven Server und aktuellen Spielerzahlen. Verfolge Peak-Zeiten, Serverkapazitäten und Entwicklungen über 24 Stunden, 7 oder 30 Tage.",
-    detail: "Historische Daten bis zu 30 Tage zurück.",
-    Icon: Server,
-    accentText: "text-blue-400",
-    accentBg: "bg-blue-400/10",
-  },
-  {
-    title: "Spieler-Profile",
-    description:
-      "Detaillierte Profile aller SMP-Spieler mit Wirtschaftsdaten, Vitalwerten, Spielstatistiken und Verlauf – alles an einem Ort übersichtlich aufbereitet und vergleichbar.",
-    detail: "Verfolge deinen Fortschritt und vergleiche dich mit anderen.",
-    Icon: Users,
-    accentText: "text-purple-400",
-    accentBg: "bg-purple-400/10",
-  },
 ];
 
 export default async function Home() {
@@ -183,10 +165,10 @@ export default async function Home() {
         </p>
         <h2 className="mt-3 text-2xl font-bold">Trete dem Netzwerk bei</h2>
         <div className="mx-auto mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <ServerAddress edition="Java Edition" address="play.trycity.de" />
+          <ServerAddress edition="Java Edition" address="trycity.net" />
           <ServerAddress
             edition="Bedrock Edition"
-            address="play.trycity.de"
+            address="trycity.net"
             port="19132"
           />
         </div>

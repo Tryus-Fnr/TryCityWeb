@@ -47,8 +47,55 @@ export default async function RootLayout({
       <body className="flex min-h-full flex-col font-sans">
         <Navbar session={navSession} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
-        <footer className="border-t border-white/10 py-6 text-center text-sm text-neutral-500">
-          TryCity Netzwerk · Alle Daten live vom Server
+        <footer className="border-t border-white/10 py-8">
+          <div className="mx-auto max-w-6xl px-4 flex flex-col items-center gap-5">
+            {/* Social links */}
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+              <a
+                href="https://shop.trycity.net"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-amber-500/70 transition-colors hover:text-amber-400"
+              >
+                Store
+              </a>
+              <a
+                href="https://discord.gg/zJaQ8tfyzh"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-indigo-400/70 transition-colors hover:text-indigo-400"
+              >
+                Discord
+              </a>
+              <a
+                href="https://twitch.tv/tryus"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-violet-400/70 transition-colors hover:text-violet-400"
+              >
+                Twitch · Tryus
+              </a>
+              <a
+                href="https://www.youtube.com/@MehrTryus"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-red-400/70 transition-colors hover:text-red-400"
+              >
+                YouTube · MehrTryus
+              </a>
+              <a
+                href="https://youtube.com/@Tryusfnr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-red-400/70 transition-colors hover:text-red-400"
+              >
+                YouTube · Tryusfnr
+              </a>
+            </div>
+            <p className="text-xs text-neutral-600">
+              TryCity Netzwerk · Alle Daten live vom Server
+            </p>
+          </div>
         </footer>
       </body>
     </html>
