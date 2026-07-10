@@ -40,8 +40,8 @@ if [ "$STASHED" = true ]; then
 fi
 
 # 5. Abhängigkeiten aktualisieren
-echo "▶  npm ci..."
-npm ci --prefer-offline
+echo "▶  npm install..."
+npm install --prefer-offline
 
 # 6. Produktions-Build
 echo "▶  npm run build..."
