@@ -62,15 +62,6 @@ const features: Feature[] = [
     accentBg: "bg-red-400/10",
   },
   {
-    title: "Item-Preisverläufe",
-    description:
-      "Alle handelbaren Items auf einen Blick. Interaktive Verlaufsgraphen zeigen die Preisentwicklung der letzten Tage sowie Mindest- und Höchstwerte zum idealen Kauf- oder Verkaufszeitpunkt.",
-    detail: "Erkenne Trends – kaufe günstig, verkaufe teuer.",
-    Icon: BarChart2,
-    accentText: "text-amber-400",
-    accentBg: "bg-amber-400/10",
-  },
-  {
     title: "SMP Spielwelt",
     description:
       "Erkunde, baue und überlebe in einer offenen Survival-Spielwelt gemeinsam mit anderen Spielern. Verbünde dich, handle oder schlage deinen ganz eigenen Weg ein.",
