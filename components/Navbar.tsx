@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { Menu, X, LogOut } from "lucide-react";
@@ -71,11 +72,15 @@ export default function Navbar({ session }: Props) {
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
 
         {/* ── Logo ── */}
-        <Link
-          href="/"
-          className="shrink-0 text-base font-bold tracking-tight text-neutral-100 transition-colors hover:text-white"
-        >
-          TryCity
+        <Link href="/" className="shrink-0 transition-opacity hover:opacity-80">
+          <Image
+            src="/logo.png"
+            alt="TryCity"
+            height={32}
+            width={120}
+            className="h-8 w-auto object-contain"
+            priority
+          />
         </Link>
 
         {/* ── Desktop nav ── */}
