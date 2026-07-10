@@ -619,3 +619,60 @@ export async function loadPeak(sinceMs: number): Promise<number> {
   );
   return rows.length > 0 && rows[0].peak !== null ? Number(rows[0].peak) : 0;
 }
+
+// ─── Karten-Sync (smpg_map_sync, befüllt vom SMPGlobal-MapSync) ─────────────
+
+export type SyncedMap = {
+  originServer: string;
+  originMapId: number;
+  centerX: number;
+  centerZ: number;
+  scale: number;
+  dimension: string;
+  locked: boolean;
+  updatedAt: string;
+};
+
+/** Alle synchronisierten Karten (nur Metadaten, keine Pixel). */
+export async function loadSyncedMaps(): Promise<SyncedMap[]> {
+  const rows = await query<{
+    origin_server: string;
+    origin_map_id: number;
+    center_x: number;
+    center_z: number;
+    scale: number;
+    dimension: string;
+    locked: number;
+    updated_at: string;
+  }>(
+    `SELECT origin_server, origin_map_id, center_x, center_z,
+            scale, dimension, locked, updated_at
+     FROM smpg_map_sync
+     ORDER BY updated_at DESC`
+  );
+  return rows.map((r) => ({
+    originServer: r.origin_server,
+    originMapId: Number(r.origin_map_id),
+    centerX: Number(r.center_x),
+    centerZ: Number(r.center_z),
+    scale: Number(r.scale),
+    dimension: r.dimension,
+    locked: Number(r.locked) === 1,
+    updatedAt: r.updated_at,
+  }));
+}
+
+/** Pixel-Blob (zlib-komprimiert) + Hash einer Karte – für das PNG-Rendering. */
+export async function loadMapPixels(
+  originServer: string,
+  originMapId: number
+): Promise<{ pixels: Buffer; pixelHash: string } | null> {
+  const rows = await query<{ pixels: Buffer | null; pixel_hash: string }>(
+    `SELECT pixels, pixel_hash FROM smpg_map_sync
+     WHERE origin_server = ? AND origin_map_id = ?
+     LIMIT 1`,
+    [originServer, originMapId]
+  );
+  if (rows.length === 0 || rows[0].pixels === null) return null;
+  return { pixels: rows[0].pixels, pixelHash: String(rows[0].pixel_hash) };
+}

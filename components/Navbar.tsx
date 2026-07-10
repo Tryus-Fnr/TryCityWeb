@@ -21,6 +21,7 @@ const ADMIN_TABS = [
   { href: "/stats", label: "Server-Stats" },
   { href: "/servermap", label: "Server-Karte" },
   { href: "/players", label: "SMP-Spieler" },
+  { href: "/maps", label: "Karten" },
 ];
 
 export default function Navbar({ session }: Props) {
