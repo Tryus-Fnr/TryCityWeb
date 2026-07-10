@@ -1,15 +1,19 @@
+import type { Metadata } from "next";
 import PlayerBrowser from "@/components/PlayerBrowser";
 import { loadAllPlayers } from "@/lib/queries";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "SMP-Spieler – TryCity" };
+export const metadata: Metadata = { title: "SMP-Spieler – TryCity" };
 
 export default async function PlayersPage() {
+  await requireAdmin();
+
   let players: Awaited<ReturnType<typeof loadAllPlayers>> = [];
   try {
     players = await loadAllPlayers();
   } catch {
-    // Bei DB-Ausfall leere Liste – Client lädt nach
+    // Bei DB-Ausfall leere Liste
   }
 
   return (

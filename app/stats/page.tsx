@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import PlayerStats from "@/components/PlayerStats";
+import { requireAdmin } from "@/lib/auth";
 
-export const metadata = { title: "Server-Stats – TryCity" };
+export const metadata: Metadata = { title: "Server-Stats – TryCity" };
 
-export default function StatsPage() {
+export default async function StatsPage() {
+  await requireAdmin();
   return (
     <div className="flex flex-col gap-6">
       <div>

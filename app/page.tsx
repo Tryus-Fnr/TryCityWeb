@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadItems, loadPeak, loadServersNow } from "@/lib/queries";
+import { getAdminStatus } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ async function loadHomeStats() {
 }
 
 export default async function Home() {
-  const stats = await loadHomeStats();
+  const [stats, isAdmin] = await Promise.all([
+    loadHomeStats(),
+    getAdminStatus(),
+  ]);
 
   return (
     <div className="flex flex-col gap-12">
@@ -48,16 +52,7 @@ export default async function Home() {
 
       {/* Tabs / Bereiche */}
       <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <TabCard
-          href="/stats"
-          title="Server-Stats"
-          description="Spielerzahlen-Verlauf über 24 Stunden, 7 oder 30 Tage – gesamt und pro Server."
-        />
-        <TabCard
-          href="/servermap"
-          title="Server-Karte"
-          description="Interaktive zoombare Karte aller SMP-Server-Regionen mit Koordinaten und Status."
-        />
+        {/* Öffentliche Bereiche – für alle sichtbar */}
         <TabCard
           href="/items"
           title="Item-Werte"
@@ -78,11 +73,26 @@ export default async function Home() {
           title="Kopfgelder"
           description="Aktive Kopfgelder auf Spieler – wer steht ganz oben auf der Liste?"
         />
-        <TabCard
-          href="/players"
-          title="SMP-Spieler"
-          description="Alle Spieler des SMP mit Statistiken, Wirtschaftsdaten, Vitalwerten und Spielprofil."
-        />
+        {/* Admin-Bereiche – nur für Admins sichtbar */}
+        {isAdmin && (
+          <>
+            <TabCard
+              href="/stats"
+              title="Server-Stats"
+              description="Spielerzahlen-Verlauf über 24 Stunden, 7 oder 30 Tage – gesamt und pro Server."
+            />
+            <TabCard
+              href="/servermap"
+              title="Server-Karte"
+              description="Interaktive zoombare Karte aller SMP-Server-Regionen mit Koordinaten und Status."
+            />
+            <TabCard
+              href="/players"
+              title="SMP-Spieler"
+              description="Alle Spieler des SMP mit Statistiken, Wirtschaftsdaten, Vitalwerten und Spielprofil."
+            />
+          </>
+        )}
       </section>
 
       {!stats && (

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import ServerMap from "@/components/ServerMap";
+import { requireAdmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Server-Karte – TryCity" };
 
-export default function ServerMapPage() {
+export default async function ServerMapPage() {
+  await requireAdmin();
   return (
     <div className="flex flex-col gap-6">
       <div>
