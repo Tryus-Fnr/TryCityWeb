@@ -15,6 +15,9 @@ export type Session = {
   issuedAt: number;
 };
 
+/** Eingabe für createSession – issuedAt wird vom JWT automatisch gesetzt. */
+type SessionInput = Omit<Session, "issuedAt">;
+
 function secret(): Uint8Array {
   const s = process.env.AUTH_SECRET;
   if (!s || s.length < 16) {
@@ -23,7 +26,7 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(s);
 }
 
-export async function createSession(session: Session): Promise<void> {
+export async function createSession(session: SessionInput): Promise<void> {
   const jwt = await new SignJWT({ name: session.name, uuid: session.uuid })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
