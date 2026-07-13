@@ -33,4 +33,14 @@ CREATE USER IF NOT EXISTS 'trycity_web'@'localhost' IDENTIFIED BY '<PASSWORT>';
 GRANT SELECT ON `<DATENBANK>`.* TO 'trycity_web'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON `<DATENBANK>`.`smpg_web_login_codes` TO 'trycity_web'@'localhost';
 
+-- ============================================================================
+-- Mod-Panel: Die SELECT-Berechtigung auf alle Tabellen reicht bereits aus.
+-- Mods brauchen nur Lesezugriff auf die folgenden Tabellen:
+--   tryus_punishments, tryus_ip_records, tryus_trusts, tryus_bot_actions,
+--   friends, tryus_clans, tryus_clan_ranks, tryus_clan_members, tryus_players
+--
+-- LuckPerms-Berechtigung für Mods (ingame vergeben):
+--   /lp user <spieler> permission set trycity.webmod true
+-- ============================================================================
+
 FLUSH PRIVILEGES;

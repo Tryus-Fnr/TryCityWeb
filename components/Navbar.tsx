@@ -4,10 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, ShieldCheck, BarChart2, Map, Users, Layers } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText } from "lucide-react";
 
 type Props = {
-  session: { name: string; isAdmin: boolean } | null;
+  session: { name: string; isAdmin: boolean; isMod: boolean } | null;
 };
 
 const MARKT_TABS = [
@@ -24,17 +24,24 @@ const ADMIN_TABS = [
   { href: "/maps",      label: "Karten",        desc: "Alle Server-Karten",         Icon: Layers    },
 ];
 
+const MOD_TABS = [
+  { href: "/mod",         label: "Mod-Panel",       desc: "Übersicht & Unban-Anträge",   Icon: Shield    },
+  { href: "/mod/players", label: "Spieler-Suche",   desc: "Spielerinfos & Strafen",      Icon: Users     },
+];
+
 export default function Navbar({ session }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen]       = useState(false);
   const [marktOpen, setMarktOpen]     = useState(false);
   const [adminOpen, setAdminOpen]     = useState(false);
+  const [modOpen, setModOpen]         = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const marktRef    = useRef<HTMLDivElement>(null);
   const adminRef    = useRef<HTMLDivElement>(null);
+  const modRef      = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -42,6 +49,7 @@ export default function Navbar({ session }: Props) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
       if (marktRef.current    && !marktRef.current.contains(e.target as Node))    setMarktOpen(false);
       if (adminRef.current    && !adminRef.current.contains(e.target as Node))    setAdminOpen(false);
+      if (modRef.current      && !modRef.current.contains(e.target as Node))      setModOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -62,13 +70,15 @@ export default function Navbar({ session }: Props) {
 
   const isMarktActive = MARKT_TABS.some((t) => isActive(t.href));
   const isAdminActive = ADMIN_TABS.some((t) => isActive(t.href));
+  const isModActive   = MOD_TABS.some((t) => isActive(t.href));
 
   // Flat list for mobile
   const mobileTabs = [
     { href: "/", label: "Startseite" },
     ...MARKT_TABS.map((t) => ({ href: t.href, label: t.label })),
     { href: "/regelwerk", label: "Regelwerk" },
-    ...(session?.isAdmin ? ADMIN_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
+    ...(session?.isMod && !session?.isAdmin ? MOD_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
+    ...(session?.isAdmin ? [...MOD_TABS.map((t) => ({ href: t.href, label: t.label })), ...ADMIN_TABS.map((t) => ({ href: t.href, label: t.label }))] : []),
   ];
 
   const topLinkClass = (active: boolean) =>
@@ -133,11 +143,46 @@ export default function Navbar({ session }: Props) {
             Regelwerk
           </Link>
 
+          {/* Mod Dropdown */}
+          {session?.isMod && (
+            <div className="relative" ref={modRef}>
+              <button
+                onClick={() => { setModOpen((v) => !v); setAdminOpen(false); setMarktOpen(false); }}
+                className={topLinkClass(isModActive)}
+              >
+                Mod
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${modOpen ? "rotate-180" : ""}`} />
+              </button>
+              {modOpen && (
+                <div className="absolute left-0 top-full mt-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-neutral-950/95 shadow-2xl backdrop-blur-sm">
+                  <div className="p-1.5">
+                    {MOD_TABS.map(({ href, label, desc, Icon }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={() => setModOpen(false)}
+                        className={`flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                          isActive(href) ? "bg-sky-500/10 text-sky-300" : "text-neutral-300 hover:bg-white/[0.06] hover:text-neutral-100"
+                        }`}
+                      >
+                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.5} />
+                        <div>
+                          <p className="text-sm font-medium leading-tight">{label}</p>
+                          <p className="mt-0.5 text-xs text-neutral-600">{desc}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Admin Dropdown */}
           {session?.isAdmin && (
             <div className="relative" ref={adminRef}>
               <button
-                onClick={() => { setAdminOpen((v) => !v); setMarktOpen(false); }}
+                onClick={() => { setAdminOpen((v) => !v); setMarktOpen(false); setModOpen(false); }}
                 className={topLinkClass(isAdminActive)}
               >
                 Admin
@@ -205,6 +250,11 @@ export default function Navbar({ session }: Props) {
                       {session.isAdmin && (
                         <span className="mt-0.5 inline-block rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-400">
                           Admin
+                        </span>
+                      )}
+                      {!session.isAdmin && session.isMod && (
+                        <span className="mt-0.5 inline-block rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-semibold text-sky-400">
+                          Mod
                         </span>
                       )}
                     </div>

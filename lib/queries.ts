@@ -515,6 +515,285 @@ export async function loadRegions(): Promise<RegionRow[]> {
   }));
 }
 
+// ─── Mod-Queries ────────────────────────────────────────────────────────────
+
+export type PunishmentRow = {
+  id: number;
+  type: "BAN" | "MUTE" | "WARN" | "KICK";
+  reason: string;
+  staffUuid: string | null;
+  staffName: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+  active: boolean;
+  targetIp: string | null;
+};
+
+export async function loadPlayerPunishments(uuid: string): Promise<PunishmentRow[]> {
+  const rows = await query<{
+    id: number;
+    type: string;
+    reason: string;
+    staff_uuid: string | null;
+    staff_name: string | null;
+    created_at: number;
+    expires_at: number | null;
+    active: number;
+    target_ip: string | null;
+  }>(
+    `SELECT p.id, p.type, p.reason, p.staff_uuid,
+            tp.name AS staff_name,
+            p.created_at, p.expires_at, p.active, p.target_ip
+     FROM tryus_punishments p
+     LEFT JOIN tryus_players tp ON tp.uuid = p.staff_uuid
+     WHERE p.target_uuid = ?
+     ORDER BY p.created_at DESC`,
+    [uuid]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    type: r.type as PunishmentRow["type"],
+    reason: r.reason,
+    staffUuid: r.staff_uuid,
+    staffName: r.staff_name,
+    createdAt: Number(r.created_at),
+    expiresAt: r.expires_at !== null ? Number(r.expires_at) : null,
+    active: r.active === 1,
+    targetIp: r.target_ip,
+  }));
+}
+
+export type FriendRow = {
+  friendUuid: string;
+  friendName: string;
+  friendSince: number;
+  accepted: boolean;
+};
+
+export async function loadPlayerFriends(uuid: string): Promise<FriendRow[]> {
+  const rows = await query<{
+    friendUUID: string;
+    name: string;
+    friendSince: number;
+    accepted: number;
+  }>(
+    `SELECT f.friendUUID, p.name, f.friendSince, f.accepted
+     FROM friends f
+     LEFT JOIN tryus_players p ON p.uuid = f.friendUUID
+     WHERE f.playerUUID = ? AND f.accepted = 1
+     ORDER BY f.friendSince DESC`,
+    [uuid]
+  );
+  return rows.map((r) => ({
+    friendUuid: r.friendUUID,
+    friendName: r.name ?? r.friendUUID,
+    friendSince: Number(r.friendSince),
+    accepted: r.accepted === 1,
+  }));
+}
+
+export type AltAccountRow = {
+  uuid: string;
+  name: string;
+  sharedIp: string | null;
+  via: "ip" | "trust";
+};
+
+export async function loadPlayerAltAccounts(uuid: string): Promise<AltAccountRow[]> {
+  // Via trusted link
+  const trustRows = await query<{ uuid: string; name: string }>(
+    `SELECT DISTINCT p.uuid, p.name
+     FROM tryus_trusts t
+     JOIN tryus_players p ON p.uuid = IF(t.player_a = ?, t.player_b, t.player_a)
+     WHERE (t.player_a = ? OR t.player_b = ?) AND p.uuid != ?`,
+    [uuid, uuid, uuid, uuid]
+  );
+
+  // Via shared IP
+  const ipRows = await query<{ uuid: string; name: string; ip: string }>(
+    `SELECT DISTINCT p.uuid, p.name, ir2.ip
+     FROM tryus_ip_records ir1
+     JOIN tryus_ip_records ir2 ON ir2.ip = ir1.ip AND ir2.player_uuid != ir1.player_uuid
+     JOIN tryus_players p ON p.uuid = ir2.player_uuid
+     WHERE ir1.player_uuid = ?`,
+    [uuid]
+  );
+
+  const result: AltAccountRow[] = [];
+  const seen = new Set<string>();
+
+  for (const r of trustRows) {
+    if (!seen.has(r.uuid)) {
+      seen.add(r.uuid);
+      result.push({ uuid: r.uuid, name: r.name, sharedIp: null, via: "trust" });
+    }
+  }
+  for (const r of ipRows) {
+    if (!seen.has(r.uuid)) {
+      seen.add(r.uuid);
+      result.push({ uuid: r.uuid, name: r.name, sharedIp: r.ip, via: "ip" });
+    }
+  }
+  return result;
+}
+
+export type PlayerClanInfo = {
+  clanId: number;
+  clanName: string;
+  clanTag: string;
+  rankId: number | null;
+  rankName: string | null;
+};
+
+export async function loadPlayerClan(uuid: string): Promise<PlayerClanInfo | null> {
+  const rows = await query<{
+    clan_id: number;
+    name: string;
+    tag: string;
+    rank_id: number | null;
+    rank_name: string | null;
+  }>(
+    `SELECT cm.clan_id, c.name, c.tag, cm.rank_id, cr.name AS rank_name
+     FROM tryus_clan_members cm
+     JOIN tryus_clans c ON c.id = cm.clan_id
+     LEFT JOIN tryus_clan_ranks cr ON cr.clan_id = cm.clan_id AND cr.id = cm.rank_id
+     WHERE cm.uuid = ?
+     LIMIT 1`,
+    [uuid]
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    clanId: Number(r.clan_id),
+    clanName: r.name,
+    clanTag: r.tag,
+    rankId: r.rank_id !== null ? Number(r.rank_id) : null,
+    rankName: r.rank_name,
+  };
+}
+
+export type UnbanRequestRow = {
+  id: number;
+  actionType: string;
+  targetUuid: string;
+  targetName: string;
+  reason: string;
+  createdBy: string | null;
+  status: string;
+  createdAt: string;
+  processedAt: string | null;
+  resultMessage: string | null;
+};
+
+export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
+  const rows = await query<{
+    id: number;
+    action_type: string;
+    target_uuid: string;
+    target_name: string;
+    reason: string;
+    created_by: string | null;
+    status: string;
+    created_at: string;
+    processed_at: string | null;
+    result_message: string | null;
+  }>(
+    `SELECT id, action_type, target_uuid, target_name, reason, created_by,
+            status, created_at, processed_at, result_message
+     FROM tryus_bot_actions
+     WHERE action_type IN ('UNBAN_REQUEST', 'UNMUTE_REQUEST')
+     ORDER BY created_at DESC
+     LIMIT 200`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    actionType: r.action_type,
+    targetUuid: r.target_uuid,
+    targetName: r.target_name,
+    reason: r.reason,
+    createdBy: r.created_by,
+    status: r.status,
+    createdAt: r.created_at,
+    processedAt: r.processed_at,
+    resultMessage: r.result_message,
+  }));
+}
+
+export type ClanDetail = {
+  id: number;
+  name: string;
+  description: string | null;
+  tag: string;
+  color: string | null;
+  secondaryColor: string | null;
+  bankBalance: number;
+  members: {
+    uuid: string;
+    name: string;
+    rankId: number | null;
+    rankName: string | null;
+    rankPriority: number | null;
+  }[];
+  ranks: { id: number; name: string; priority: number }[];
+};
+
+export async function loadClanDetail(clanId: number): Promise<ClanDetail | null> {
+  const clans = await query<{
+    id: number;
+    name: string;
+    description: string | null;
+    tag: string;
+    color: string | null;
+    secondary_color: string | null;
+    bank_balance: string;
+  }>(
+    `SELECT id, name, description, tag, color, secondary_color, bank_balance
+     FROM tryus_clans WHERE id = ? LIMIT 1`,
+    [clanId]
+  );
+  if (clans.length === 0) return null;
+  const clan = clans[0];
+
+  const members = await query<{
+    uuid: string;
+    name: string;
+    rank_id: number | null;
+    rank_name: string | null;
+    rank_priority: number | null;
+  }>(
+    `SELECT cm.uuid, p.name, cm.rank_id, cr.name AS rank_name, cr.priority AS rank_priority
+     FROM tryus_clan_members cm
+     JOIN tryus_players p ON p.uuid = cm.uuid
+     LEFT JOIN tryus_clan_ranks cr ON cr.clan_id = cm.clan_id AND cr.id = cm.rank_id
+     WHERE cm.clan_id = ?
+     ORDER BY cr.priority DESC, p.name ASC`,
+    [clanId]
+  );
+
+  const ranks = await query<{ id: number; name: string; priority: number }>(
+    `SELECT id, name, priority FROM tryus_clan_ranks WHERE clan_id = ? ORDER BY priority DESC`,
+    [clanId]
+  );
+
+  return {
+    id: Number(clan.id),
+    name: clan.name,
+    description: clan.description,
+    tag: clan.tag,
+    color: clan.color,
+    secondaryColor: clan.secondary_color,
+    bankBalance: Number(clan.bank_balance),
+    members: members.map((m) => ({
+      uuid: m.uuid,
+      name: m.name,
+      rankId: m.rank_id !== null ? Number(m.rank_id) : null,
+      rankName: m.rank_name,
+      rankPriority: m.rank_priority !== null ? Number(m.rank_priority) : null,
+    })),
+    ranks: ranks.map((r) => ({ id: Number(r.id), name: r.name, priority: Number(r.priority) })),
+  };
+}
+
 // ─── LuckPerms Admin-Check ─────────────────────────────────────────────────
 
 /**
@@ -556,6 +835,56 @@ export async function loadIsAdmin(uuid: string): Promise<boolean> {
 
        LIMIT 1`,
       [uuid, uuid, uuid]
+    );
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Prüft, ob ein Spieler (per UUID) die `trycity.webmod`-Berechtigung hat –
+ * direkt oder über seine Gruppe(n) (bis 2 Ebenen Vererbung). Admins (*) gelten auch als Mods.
+ */
+export async function loadIsMod(uuid: string): Promise<boolean> {
+  try {
+    // Admins sind automatisch auch Mods
+    const isAdmin = await loadIsAdmin(uuid);
+    if (isAdmin) return true;
+
+    const perm = "trycity.webmod";
+    const rows = await query<{ found: number }>(
+      `SELECT 1 AS found
+       FROM luckperms_user_permissions
+       WHERE uuid = ? AND permission = ? AND value = 1
+         AND (expiry = 0 OR expiry > UNIX_TIMESTAMP())
+
+       UNION
+
+       SELECT 1 FROM luckperms_user_permissions u
+       JOIN luckperms_group_permissions g
+         ON g.name = SUBSTRING(u.permission, 7)
+       WHERE u.uuid = ? AND u.permission LIKE 'group.%' AND u.value = 1
+         AND (u.expiry = 0 OR u.expiry > UNIX_TIMESTAMP())
+         AND g.permission = ? AND g.value = 1
+         AND (g.expiry = 0 OR g.expiry > UNIX_TIMESTAMP())
+
+       UNION
+
+       SELECT 1 FROM luckperms_user_permissions u
+       JOIN luckperms_group_permissions g1
+         ON g1.name = SUBSTRING(u.permission, 7)
+       JOIN luckperms_group_permissions g2
+         ON g2.name = SUBSTRING(g1.permission, 7)
+       WHERE u.uuid = ? AND u.permission LIKE 'group.%' AND u.value = 1
+         AND (u.expiry = 0 OR u.expiry > UNIX_TIMESTAMP())
+         AND g1.permission LIKE 'group.%' AND g1.value = 1
+         AND (g1.expiry = 0 OR g1.expiry > UNIX_TIMESTAMP())
+         AND g2.permission = ? AND g2.value = 1
+         AND (g2.expiry = 0 OR g2.expiry > UNIX_TIMESTAMP())
+
+       LIMIT 1`,
+      [uuid, perm, uuid, perm, uuid, perm]
     );
     return rows.length > 0;
   } catch {

@@ -4,7 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { isSessionRevoked, loadIsAdmin } from "@/lib/queries";
+import { isSessionRevoked, loadIsAdmin, loadIsMod } from "@/lib/queries";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +29,7 @@ export default async function RootLayout({
 }>) {
   const session = await getSession();
 
-  let navSession: { name: string; isAdmin: boolean } | null = null;
+  let navSession: { name: string; isAdmin: boolean; isMod: boolean } | null = null;
 
   if (session) {
     // Sitzungs-Widerruf prüfen (Minecraft-Befehl /weblogout)
@@ -39,7 +39,8 @@ export default async function RootLayout({
 
     if (!revoked) {
       const isAdmin = session.uuid ? await loadIsAdmin(session.uuid) : false;
-      navSession = { name: session.name, isAdmin };
+      const isMod = isAdmin || (session.uuid ? await loadIsMod(session.uuid) : false);
+      navSession = { name: session.name, isAdmin, isMod };
     }
   }
 
