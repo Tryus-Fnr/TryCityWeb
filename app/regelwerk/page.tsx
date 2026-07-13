@@ -16,8 +16,6 @@ const ALLOWED_MODS = [
   { name: "FerriteCore", desc: "RAM-Nutzung reduzieren" },
   { name: "EntityCulling", desc: "Nicht sichtbare Entities ausblenden" },
   { name: "LazyDFU", desc: "Schnelleres Laden des Spiels" },
-  { name: "Xaero's Minimap (ohne Spieler-Radar)", desc: "Mini-Karte ohne Spieler-Tracking" },
-  { name: "JourneyMap (ohne Spieler-Radar)", desc: "Vollbild-Karte ohne Spieler-Tracking" },
   { name: "VoxelMap (ohne Spieler-Radar)", desc: "Mini-Karte ohne Spieler-Tracking" },
   { name: "Appleskin", desc: "Anzeige von Hunger- und Sättigungswerten" },
   { name: "Shulker Box Tooltip", desc: "Inhalt von Shulkerboxen im Tooltip anzeigen" },
@@ -35,6 +33,8 @@ const BANNED_CANT_JOIN = [
   { name: "Speed Hacks", desc: "Erhöhte Bewegungsgeschwindigkeit" },
   { name: "KillAura / ForceAura", desc: "Automatisches Angreifen von Spielern/Mobs" },
   { name: "AutoClicker (im Kampf)", desc: "Automatisches Klicken für Kampfvorteile" },
+  { name: "Xaero's Minimap (ohne Spieler-Radar)", desc: "Mini-Karte ohne Spieler-Tracking" },
+  { name: "JourneyMap (ohne Spieler-Radar)", desc: "Vollbild-Karte ohne Spieler-Tracking" },
   { name: "Reach / Hitbox-Erweiterungen", desc: "Größere Reichweite beim Angreifen" },
   { name: "NoFall / AntiKnockback", desc: "Fallschaden oder Rückstoß deaktivieren" },
   { name: "Baritone (Automatisierter Abbau/Navigation)", desc: "Bot-ähnliche Automatisierung" },
@@ -46,6 +46,7 @@ const BANNED_CANT_JOIN = [
   { name: "Schematic Mods (zum Kopieren fremder Bauten)", desc: "Bauten anderer Spieler ohne Erlaubnis kopieren" },
   { name: "Auto-Fisher / Auto-Farm Mods", desc: "Vollautomatisches Angeln oder Farmen ohne Anwesenheit" },
   { name: "Macro Mods (im Vorteilskontext)", desc: "Automationen, die Spielern ungerechtfertigte Vorteile verschaffen" },
+  { name: "Seed Finder / Seed-Viewer / Seed Cracker", desc: "Ermöglicht das Erkennen von Strukturen und Ressourcen" },
   { name: "FreeLook ohne Einschränkung", desc: "Sich umschauen ohne Körperbewegung (Stealth-Vorteil)" },
 ];
 
@@ -62,36 +63,31 @@ const RULES = [
   },
   {
     nr: "§ 3",
-    title: "Fairer Handel",
-    text: "Betrug im Handel, das absichtliche Irreführen von Spielern oder das Ausnutzen von Bugs zur eigenen Bereicherung ist verboten und wird mit Bann geahndet.",
-  },
-  {
-    nr: "§ 4",
     title: "Kein Spam / kein Flooding",
     text: "Wiederholtes Senden gleicher Nachrichten, sinnloser Zeichenfolgen oder übermäßiger Nutzung von Großbuchstaben im Chat ist verboten.",
   },
   {
-    nr: "§ 5",
+    nr: "§ 4",
     title: "Keine Werbung",
     text: "Das Bewerben fremder Server, Websites oder Discord-Server ist ohne ausdrückliche Genehmigung des Teams verboten.",
   },
   {
-    nr: "§ 6",
+    nr: "§ 5",
     title: "Bug-Reporting",
     text: "Gefundene Bugs oder Exploits sind dem Team zu melden und dürfen nicht zum eigenen Vorteil ausgenutzt werden. Wer Exploits ausnutzt, riskiert einen permanenten Bann.",
   },
   {
-    nr: "§ 7",
+    nr: "§ 6",
     title: "Team-Entscheidungen",
     text: "Entscheidungen des Serverteams sind zu respektieren. Bei Unklarheiten oder Uneinigkeiten ist der Beschwerdeweg über Discord einzuhalten.",
   },
   {
-    nr: "§ 8",
+    nr: "§ 7",
     title: "Accounts & Sharing",
     text: "Jeder Spieler ist für seinen Account verantwortlich. Account-Sharing ist auf eigene Gefahr – Verstöße werden dem Account zugerechnet, unabhängig davon, wer gespielt hat.",
   },
   {
-    nr: "§ 9",
+    nr: "§ 8",
     title: "Sanktionen",
     text: "Das Team behält sich vor, bei Regelverstößen Verwarnungen, temporäre Bans oder dauerhafte Sperrungen auszusprechen. Schwere Verstöße können ohne Vorwarnung zu einem permanenten Bann führen.",
   },
