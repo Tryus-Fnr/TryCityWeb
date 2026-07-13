@@ -180,7 +180,7 @@ export default function Navbar({ session }: Props) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={`https://mc-heads.net/avatar/${encodeURIComponent(session.name)}/32`}
+                  src={`https://mc-heads.net/avatar/${encodeURIComponent(session.name)}/36`}
                   alt={session.name}
                   width={32}
                   height={32}
