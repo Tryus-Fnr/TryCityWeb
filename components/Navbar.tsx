@@ -193,7 +193,7 @@ export default function Navbar({ session }: Props) {
                   <div className="flex items-center gap-3 border-b border-white/10 px-3 py-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={`https://mc-heads.net/avatar/${encodeURIComponent(session.name)}/40`}
+                      src={`https://mc-heads.net/avatar/${encodeURIComponent(session.name)}/48`}
                       alt={session.name}
                       width={40}
                       height={40}
