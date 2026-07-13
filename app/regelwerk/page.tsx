@@ -7,6 +7,7 @@ export const metadata: Metadata = {
 };
 
 const ALLOWED_MODS = [
+  { name: "Simple Voice Chat", desc: "Näherungs-Sprachchat im Spiel" },
   { name: "Sodium", desc: "Performance-Optimierung für Rendering (Fabric)" },
   { name: "Lithium", desc: "Server-seitige Performance-Optimierung (Fabric)" },
   { name: "Iris Shaders", desc: "Shader-Unterstützung für Fabric" },
@@ -22,11 +23,9 @@ const ALLOWED_MODS = [
   { name: "Shulker Box Tooltip", desc: "Inhalt von Shulkerboxen im Tooltip anzeigen" },
   { name: "Inventory Tweaks / Inventory Profiles Next", desc: "Inventar-Sortierung" },
   { name: "REI / JEI (nur Rezept-Lookup)", desc: "Rezepte nachschlagen" },
-  { name: "Replay Mod", desc: "Aufnahme und Wiedergabe von Sessions" },
   { name: "Distant Horizons", desc: "Erhöhte Renderdistanz (LOD)" },
   { name: "BetterF3", desc: "Übersichtlicheres Debug-Menü" },
   { name: "No Chat Reports", desc: "Entfernt Chat-Report-Signaturen" },
-  { name: "Simple Voice Chat", desc: "Näherungs-Sprachchat im Spiel" },
 ];
 
 const BANNED_CANT_JOIN = [
@@ -42,9 +41,6 @@ const BANNED_CANT_JOIN = [
   { name: "FreeCam (zum Ausspähen von Spielern)", desc: "Außerhalb des Körpers die Welt erkunden" },
   { name: "Scaffold / Scaffold Hacks", desc: "Automatisches Platzieren von Blöcken" },
   { name: "ESP / Wallhack", desc: "Spieler/Items durch Wände sehen" },
-];
-
-const BANNED_UNTRACKABLE = [
   { name: "Minimap mit Spieler-Radar", desc: "Zeigt Positionen anderer Spieler auf der Karte" },
   { name: "Radar-Mods", desc: "Jegliche Mods, die Spieler oder Mobs orten" },
   { name: "Schematic Mods (zum Kopieren fremder Bauten)", desc: "Bauten anderer Spieler ohne Erlaubnis kopieren" },
@@ -61,46 +57,41 @@ const RULES = [
   },
   {
     nr: "§ 2",
-    title: "Kein Griefing",
-    text: "Das absichtliche Zerstören, Verändern oder Stehlen von Bauten anderer Spieler ohne deren Erlaubnis ist verboten. Dies gilt auch für das Töten von Tieren oder das Leeren von Feldern.",
-  },
-  {
-    nr: "§ 3",
     title: "Kein Cheating / Hacking",
     text: "Die Nutzung von Hacks, Cheats oder Mods, die einen unfairen Vorteil gegenüber anderen Spielern verschaffen, ist strikt verboten. Siehe Mod-Liste unten.",
   },
   {
-    nr: "§ 4",
+    nr: "§ 3",
     title: "Fairer Handel",
     text: "Betrug im Handel, das absichtliche Irreführen von Spielern oder das Ausnutzen von Bugs zur eigenen Bereicherung ist verboten und wird mit Bann geahndet.",
   },
   {
-    nr: "§ 5",
+    nr: "§ 4",
     title: "Kein Spam / kein Flooding",
     text: "Wiederholtes Senden gleicher Nachrichten, sinnloser Zeichenfolgen oder übermäßiger Nutzung von Großbuchstaben im Chat ist verboten.",
   },
   {
-    nr: "§ 6",
+    nr: "§ 5",
     title: "Keine Werbung",
     text: "Das Bewerben fremder Server, Websites oder Discord-Server ist ohne ausdrückliche Genehmigung des Teams verboten.",
   },
   {
-    nr: "§ 7",
+    nr: "§ 6",
     title: "Bug-Reporting",
     text: "Gefundene Bugs oder Exploits sind dem Team zu melden und dürfen nicht zum eigenen Vorteil ausgenutzt werden. Wer Exploits ausnutzt, riskiert einen permanenten Bann.",
   },
   {
-    nr: "§ 8",
+    nr: "§ 7",
     title: "Team-Entscheidungen",
     text: "Entscheidungen des Serverteams sind zu respektieren. Bei Unklarheiten oder Uneinigkeiten ist der Beschwerdeweg über Discord einzuhalten.",
   },
   {
-    nr: "§ 9",
+    nr: "§ 8",
     title: "Accounts & Sharing",
     text: "Jeder Spieler ist für seinen Account verantwortlich. Account-Sharing ist auf eigene Gefahr – Verstöße werden dem Account zugerechnet, unabhängig davon, wer gespielt hat.",
   },
   {
-    nr: "§ 10",
+    nr: "§ 9",
     title: "Sanktionen",
     text: "Das Team behält sich vor, bei Regelverstößen Verwarnungen, temporäre Bans oder dauerhafte Sperrungen auszusprechen. Schwere Verstöße können ohne Vorwarnung zu einem permanenten Bann führen.",
   },
@@ -186,29 +177,6 @@ export default function RegelwerkPage() {
         </div>
       </section>
 
-      {/* Verbotene Mods – nicht trackbar */}
-      <section className="mb-16">
-        <SectionHeader icon={<AlertTriangle className="h-5 w-5 text-amber-400" />} title="Verbotene Mods – schwer zu erkennen" color="amber" />
-        <p className="mt-3 text-sm text-neutral-500">
-          Diese Mods können serverseitig nicht zuverlässig erkannt werden, sind aber dennoch ausdrücklich verboten.
-          Wer dabei erwischt wird, riskiert einen permanenten Bann.
-        </p>
-        <div className="mt-6 flex flex-col gap-3">
-          {BANNED_UNTRACKABLE.map((mod) => (
-            <div
-              key={mod.name}
-              className="flex items-start gap-3 rounded-xl border border-amber-500/10 bg-amber-500/[0.04] px-4 py-3"
-            >
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <div>
-                <p className="text-sm font-semibold text-neutral-100">{mod.name}</p>
-                <p className="text-xs text-neutral-500">{mod.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Footer-Hinweis */}
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-6 py-5 text-center text-sm text-neutral-500">
         Das Regelwerk kann jederzeit angepasst werden. Spieler werden über Änderungen auf unserem{" "}
@@ -220,7 +188,7 @@ export default function RegelwerkPage() {
         >
           Discord
         </a>{" "}
-        informiert. Stand: Juli 2025.
+        informiert. Stand: Juli 2026.
       </div>
     </div>
   );

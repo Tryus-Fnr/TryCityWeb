@@ -25,7 +25,7 @@ export default function DatenschutzPage() {
             Verantwortlich im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:
           </p>
           <p className="mt-3">
-            <span className="font-semibold text-neutral-100">Leon M. (Tryus)</span><br />
+            <span className="font-semibold text-neutral-100">Tom Adler</span><br />
             Betreiber des TryCity Minecraft-Netzwerks<br />
             Deutschland<br />
             E-Mail:{" "}
@@ -92,6 +92,21 @@ export default function DatenschutzPage() {
           <p className="mt-2 text-neutral-500 text-xs">
             Zweck: Fehlerbehebung und Sicherheitsüberwachung.
             Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.
+          </p>
+
+          <SubHeading>2.5 Online-Shop (shop.trycity.net)</SubHeading>
+          <p className="text-neutral-400">
+            Beim Kauf über den Online-Shop werden folgende Daten verarbeitet:
+          </p>
+          <ul className="list-disc list-inside text-neutral-400 mt-2 flex flex-col gap-1">
+            <li>Minecraft-UUID / Spielername (zur Zuordnung der Leistung)</li>
+            <li>Zahlungsdaten (werden direkt beim Zahlungsdienstleister verarbeitet, nicht bei uns gespeichert)</li>
+            <li>Kaufzeitpunkt und gekaufte Leistung (für Buchführungspflichten)</li>
+          </ul>
+          <p className="mt-2 text-neutral-500 text-xs">
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. c DSGVO
+            (gesetzliche Buchführungspflicht nach § 147 AO). Zahlungsabwicklung erfolgt über externe
+            Zahlungsdienstleister (z. B. PayPal, Stripe) – deren Datenschutzbestimmungen gelten ergänzend.
           </p>
         </Section>
 
@@ -205,7 +220,7 @@ export default function DatenschutzPage() {
       </div>
 
       <p className="mt-12 text-xs text-neutral-600">
-        Stand: Juli 2025 · TryCity Netzwerk
+        Stand: Juli 2026 · TryCity Netzwerk
       </p>
     </div>
   );

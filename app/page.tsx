@@ -225,26 +225,6 @@ export default async function Home() {
       {/* ── REGELWERK TEASER ── */}
       <section className="border-b border-white/[0.06] py-16">
         <div className="flex flex-col items-center gap-10 sm:flex-row sm:items-start sm:gap-16">
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3 flex-1">
-            <RuleTeaser
-              icon={<ShieldCheck className="h-5 w-5 text-sky-400" />}
-              label="Allgemeine Regeln"
-              color="sky"
-              examples={["Kein Griefing", "Respektvoller Umgang", "Kein Spam"]}
-            />
-            <RuleTeaser
-              icon={<CheckCircle className="h-5 w-5 text-emerald-400" />}
-              label="Erlaubte Mods"
-              color="emerald"
-              examples={["Sodium / OptiFine", "Xaero's Minimap", "Shulker Tooltip"]}
-            />
-            <RuleTeaser
-              icon={<XCircle className="h-5 w-5 text-red-400" />}
-              label="Verboten"
-              color="red"
-              examples={["Hacked Clients", "X-Ray / ESP", "KillAura"]}
-            />
-          </div>
           <div className="flex-[2] text-center sm:text-left">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
               Regelwerk
@@ -252,8 +232,7 @@ export default async function Home() {
             <h2 className="mt-2 text-3xl font-bold">Fairer Spaß für alle</h2>
             <p className="mt-4 text-base leading-relaxed text-neutral-400">
               Damit alle Spieler eine gute Zeit haben, gelten klare Regeln – von allgemeinem Respekt
-              über Mod-Richtlinien bis hin zu verbotenen Clients. Schau ins Regelwerk, bevor du
-              deine erste Runde startest.
+              über Mod-Richtlinien bis hin zu verbotenen Clients.
             </p>
             <Link
               href="/regelwerk"

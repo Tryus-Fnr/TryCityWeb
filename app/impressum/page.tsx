@@ -21,13 +21,14 @@ export default function ImpressumPage() {
         {/* Betreiber */}
         <Section title="Betreiber">
           <p className="text-neutral-400">
-            Das TryCity Netzwerk wird als privates, nicht-kommerzielles Minecraft-Projekt betrieben.
+            Das TryCity Netzwerk wird als kommerzielles Minecraft-Netzwerk betrieben. Über den offiziellen
+            Store werden kostenpflichtige Leistungen angeboten.
           </p>
           <p className="mt-3">
-            <span className="font-semibold text-neutral-100">Projektname:</span> TryCity Netzwerk
+            <span className="font-semibold text-neutral-100">Name:</span> Tom Adler
           </p>
           <p>
-            <span className="font-semibold text-neutral-100">Betrieben durch:</span> Leon M. (Tryus)
+            <span className="font-semibold text-neutral-100">Projektname:</span> TryCity Netzwerk
           </p>
           <p>
             <span className="font-semibold text-neutral-100">Anschrift:</span> Deutschland
@@ -62,7 +63,7 @@ export default function ImpressumPage() {
 
         {/* Inhaltlich Verantwortlicher */}
         <Section title="Inhaltlich Verantwortlicher gemäß § 18 Abs. 2 MStV">
-          <p>Leon M. (Tryus), Deutschland</p>
+          <p>Tom Adler, Deutschland</p>
           <p className="mt-1 text-neutral-500 text-xs">
             Verantwortlich für Inhalte des Netzwerks, der Website und der zugehörigen Social-Media-Kanäle.
           </p>
@@ -113,15 +114,40 @@ export default function ImpressumPage() {
             >
               ec.europa.eu/consumers/odr
             </a>
-            . Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer
+            . Unsere E-Mail-Adresse lautet: contact@trycity.net
+          </p>
+          <p className="mt-3 text-neutral-400">
+            Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer
             Verbraucherschlichtungsstelle teilzunehmen.
+          </p>
+        </Section>
+
+        {/* Online-Shop Hinweis */}
+        <Section title="Hinweis zum Online-Shop">
+          <p className="text-neutral-400">
+            Über{" "}
+            <a
+              href="https://shop.trycity.net"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              shop.trycity.net
+            </a>{" "}
+            werden kostenpflichtige virtuelle Leistungen (z. B. Ränge, kosmetische Items) für das
+            TryCity Minecraft-Netzwerk angeboten. Vertragspartner ist dabei Tom Adler (TryCity Netzwerk).
+            Für den Kauf gelten die im Shop hinterlegten AGB und Widerrufsbelehrungen.
+          </p>
+          <p className="mt-3 text-neutral-500 text-xs">
+            Minecraft ist ein eingetragenes Warenzeichen der Mojang Studios / Microsoft Corporation.
+            TryCity steht in keiner offiziellen Verbindung zu Mojang Studios oder Microsoft.
           </p>
         </Section>
 
       </div>
 
       <p className="mt-12 text-xs text-neutral-600">
-        Stand: Juli 2025 · TryCity Netzwerk
+        Stand: Juli 2026 · TryCity Netzwerk
       </p>
     </div>
   );
