@@ -15,6 +15,7 @@ const PUBLIC_TABS = [
   { href: "/auction", label: "Auktionshaus" },
   { href: "/orders", label: "Orders" },
   { href: "/bounties", label: "Kopfgelder" },
+  { href: "/regelwerk", label: "Regelwerk" },
 ];
 
 const ADMIN_TABS = [

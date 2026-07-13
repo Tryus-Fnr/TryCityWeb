@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
   TrendingUp,
   Hammer,
@@ -8,6 +9,9 @@ import {
   Map,
   Server,
   Users,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { getAdminStatus } from "@/lib/auth";
@@ -176,6 +180,92 @@ export default async function Home() {
         ))}
       </div>
 
+      {/* ── SERVER SCREENSHOTS PLACEHOLDER ── */}
+      <section className="border-b border-white/[0.06] py-16">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+            Eindrücke
+          </p>
+          <h2 className="mt-2 text-2xl font-bold">Der Server in Bildern</h2>
+          <p className="mt-2 text-sm text-neutral-600">Screenshots und Highlights aus der Spielwelt</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { label: "Spawn-Bereich", hint: "Bild vom Spawn" },
+            { label: "Marktplatz", hint: "Bild des Marktplatzes" },
+            { label: "Spielerwelt", hint: "Bild aus der SMP-Welt" },
+            { label: "Bauten der Community", hint: "Community-Bauten" },
+            { label: "Wirtschaft & Shop", hint: "Bild des Shops" },
+            { label: "Events & Highlights", hint: "Event-Screenshot" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="group relative flex aspect-video items-center justify-center overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+            >
+              {/* Placeholder grid pattern */}
+              <div
+                className="absolute inset-0 opacity-[0.04]"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(0deg,transparent,transparent 24px,white 24px,white 25px),repeating-linear-gradient(90deg,transparent,transparent 24px,white 24px,white 25px)",
+                }}
+              />
+              <div className="relative flex flex-col items-center gap-2 text-center px-4">
+                <div className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10">
+                  <Server className="h-6 w-6 text-neutral-600" strokeWidth={1.5} />
+                </div>
+                <p className="text-xs font-semibold text-neutral-500">{item.label}</p>
+                <p className="text-[10px] text-neutral-700">{item.hint}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── REGELWERK TEASER ── */}
+      <section className="border-b border-white/[0.06] py-16">
+        <div className="flex flex-col items-center gap-10 sm:flex-row sm:items-start sm:gap-16">
+          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-3 flex-1">
+            <RuleTeaser
+              icon={<ShieldCheck className="h-5 w-5 text-sky-400" />}
+              label="Allgemeine Regeln"
+              color="sky"
+              examples={["Kein Griefing", "Respektvoller Umgang", "Kein Spam"]}
+            />
+            <RuleTeaser
+              icon={<CheckCircle className="h-5 w-5 text-emerald-400" />}
+              label="Erlaubte Mods"
+              color="emerald"
+              examples={["Sodium / OptiFine", "Xaero's Minimap", "Shulker Tooltip"]}
+            />
+            <RuleTeaser
+              icon={<XCircle className="h-5 w-5 text-red-400" />}
+              label="Verboten"
+              color="red"
+              examples={["Hacked Clients", "X-Ray / ESP", "KillAura"]}
+            />
+          </div>
+          <div className="flex-[2] text-center sm:text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
+              Regelwerk
+            </p>
+            <h2 className="mt-2 text-3xl font-bold">Fairer Spaß für alle</h2>
+            <p className="mt-4 text-base leading-relaxed text-neutral-400">
+              Damit alle Spieler eine gute Zeit haben, gelten klare Regeln – von allgemeinem Respekt
+              über Mod-Richtlinien bis hin zu verbotenen Clients. Schau ins Regelwerk, bevor du
+              deine erste Runde startest.
+            </p>
+            <Link
+              href="/regelwerk"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sky-500/15 px-5 py-2.5 text-sm font-semibold text-sky-300 ring-1 ring-sky-500/30 transition-colors hover:bg-sky-500/25 hover:text-sky-200"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Regelwerk lesen
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ── TAB CAROUSEL ── */}
       <section className="overflow-hidden py-20">
         <div className="mb-10 text-center">
@@ -257,3 +347,38 @@ function FeatureSection({
     </section>
   );
 }
+
+function RuleTeaser({
+  icon,
+  label,
+  color,
+  examples,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: "sky" | "emerald" | "red";
+  examples: string[];
+}) {
+  const ringColor = {
+    sky: "ring-sky-500/20 bg-sky-500/[0.04]",
+    emerald: "ring-emerald-500/20 bg-emerald-500/[0.04]",
+    red: "ring-red-500/20 bg-red-500/[0.04]",
+  }[color];
+
+  return (
+    <div className={`flex flex-col gap-2 rounded-xl ring-1 px-4 py-3 min-w-[160px] ${ringColor}`}>
+      <div className="flex items-center gap-2">
+        {icon}
+        <span className="text-xs font-bold text-neutral-200">{label}</span>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {examples.map((e) => (
+          <li key={e} className="text-[11px] text-neutral-500">
+            · {e}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+

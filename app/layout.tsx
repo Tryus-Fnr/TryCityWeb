@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { isSessionRevoked, loadIsAdmin } from "@/lib/queries";
 
@@ -91,6 +92,27 @@ export default async function RootLayout({
               >
                 YouTube · Tryusfnr
               </a>
+            </div>
+            {/* Legal links */}
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-1">
+              <Link
+                href="/regelwerk"
+                className="text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+              >
+                Regelwerk
+              </Link>
+              <Link
+                href="/impressum"
+                className="text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+              >
+                Impressum
+              </Link>
+              <Link
+                href="/datenschutz"
+                className="text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+              >
+                Datenschutz
+              </Link>
             </div>
             <p className="text-xs text-neutral-600">
               TryCity Netzwerk · Alle Daten live vom Server
