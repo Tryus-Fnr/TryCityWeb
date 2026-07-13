@@ -25,13 +25,16 @@ const ALLOWED_MODS = [
 ];
 
 const BANNED_CANT_JOIN = [
-  { name: "Hacked Clients (Wurst, Impact, Meteor, etc.)", desc: "Vollständig verboten – führt zum sofortigen Bann" },
+  { name: "Hacked Clients (Wurst, Impact, Meteor, LiquidBounce, BleachHack, Aristois, Coffee Client, Inertia, KAMI, Lambda, RusherHack, Aoba, Lumina, etc.)", desc: "Vollständig verboten – führt zum sofortigen Bann" },
   { name: "X-Ray Texture Packs / X-Ray Mods", desc: "Erzminen durch Wände sehen" },
   { name: "Fly Hacks", desc: "Unerlaubtes Fliegen in Survival" },
   { name: "Speed Hacks", desc: "Erhöhte Bewegungsgeschwindigkeit" },
   { name: "KillAura / ForceAura", desc: "Automatisches Angreifen von Spielern/Mobs" },
   { name: "AutoClicker (im Kampf)", desc: "Automatisches Klicken für Kampfvorteile" },
+  { name: "AutoSwitch", desc: "Automatisches Wechseln der Waffe je nach Situation" },
+  { name: "AntiAFK", desc: "Umgeht die AFK-Erkennung des Servers" },
   { name: "Xaero's Minimap (ohne Spieler-Radar)", desc: "Mini-Karte ohne Spieler-Tracking" },
+  { name: "Xaero's World Map", desc: "Vollbild-Weltkarte mit gespeicherten Erkundungsdaten" },
   { name: "JourneyMap (ohne Spieler-Radar)", desc: "Vollbild-Karte ohne Spieler-Tracking" },
   { name: "Reach / Hitbox-Erweiterungen", desc: "Größere Reichweite beim Angreifen" },
   { name: "NoFall / AntiKnockback", desc: "Fallschaden oder Rückstoß deaktivieren" },
@@ -41,11 +44,15 @@ const BANNED_CANT_JOIN = [
   { name: "ESP / Wallhack", desc: "Spieler/Items durch Wände sehen" },
   { name: "Minimap mit Spieler-Radar", desc: "Zeigt Positionen anderer Spieler auf der Karte" },
   { name: "Radar-Mods", desc: "Jegliche Mods, die Spieler oder Mobs orten" },
+  { name: "Litematica / Servux", desc: "Schematic-Mod mit Server-Datenzugriff (Servux-Channel)" },
+  { name: "World Downloader", desc: "Lädt Teile der Spielwelt als lokale Map herunter" },
   { name: "Schematic Mods (zum Kopieren fremder Bauten)", desc: "Bauten anderer Spieler ohne Erlaubnis kopieren" },
   { name: "Auto-Fisher / Auto-Farm Mods", desc: "Vollautomatisches Angeln oder Farmen ohne Anwesenheit" },
   { name: "Macro Mods (im Vorteilskontext)", desc: "Automationen, die Spielern ungerechtfertigte Vorteile verschaffen" },
   { name: "Seed Finder / Seed-Viewer / Seed Cracker", desc: "Ermöglicht das Erkennen von Strukturen und Ressourcen" },
   { name: "FreeLook ohne Einschränkung", desc: "Sich umschauen ohne Körperbewegung (Stealth-Vorteil)" },
+  { name: "ReplayMod", desc: "Gameplay-Aufnahme und -Wiedergabe (Channel-Detection)" },
+  { name: "Flashback", desc: "Replay-Aufnahme-Mod (ReplayMod-Alternative, Channel-Detection)" },
 ];
 
 const RULES = [
