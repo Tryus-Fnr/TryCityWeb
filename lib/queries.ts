@@ -30,7 +30,7 @@ export async function loadItems(): Promise<ItemRow[]> {
     `SELECT s.material, s.sell_price AS price,
             d.start_value, d.min_price, d.max_price
      FROM smpg_sell_prices s
-     LEFT JOIN smpg_dynamic_prices d ON d.material = s.material
+     INNER JOIN smpg_dynamic_prices d ON d.material = s.material
      ORDER BY s.material ASC`
   );
 
@@ -132,6 +132,65 @@ export async function loadItemDetail(material: string, days: number | null) {
       })
     ),
   };
+}
+
+// ─── Marktpreis-Verlauf (Auktionshaus + Orders) ────────────────────────────
+
+export type MarketDayPoint = {
+  day: string;
+  avgAuction: number | null;
+  avgOrder: number | null;
+};
+
+/**
+ * Tägliche Durchschnittspreise für ein Item:
+ *  - avgAuction: Ø-Preis verkaufter Auktionshaus-Listings
+ *  - avgOrder:   Ø-Preis-pro-Item in gelieferten Kaufaufträgen
+ */
+export async function loadItemMarketHistory(
+  material: string,
+  days: number | null
+): Promise<MarketDayPoint[]> {
+  const dayFilter = days !== null
+    ? `AND created_at >= UNIX_TIMESTAMP(NOW() - INTERVAL ${Number(days)} DAY) * 1000`
+    : "";
+
+  const auctionRows = await query<{ day: string; avg_val: string }>(
+    `SELECT DATE(FROM_UNIXTIME(created_at / 1000)) AS day,
+            AVG(CASE WHEN listing_type = 'AUCTION' THEN current_bid ELSE price END) AS avg_val
+     FROM smpg_auction_listings
+     WHERE UPPER(item_material) = ?
+       AND status NOT IN ('ACTIVE', 'CANCELLED', 'EXPIRED')
+       AND created_at > 0
+       ${dayFilter}
+     GROUP BY day
+     ORDER BY day ASC`,
+    [material.toUpperCase()]
+  );
+
+  const orderRows = await query<{ day: string; avg_val: string }>(
+    `SELECT DATE(FROM_UNIXTIME(created_at / 1000)) AS day,
+            AVG(price_per_item) AS avg_val
+     FROM smpg_orders
+     WHERE UPPER(material) = ?
+       AND delivered > 0
+       AND created_at > 0
+       ${dayFilter}
+     GROUP BY day
+     ORDER BY day ASC`,
+    [material.toUpperCase()]
+  );
+
+  // Alle Tage aus beiden Quellen sammeln und zusammenführen
+  const auctionMap = new Map(auctionRows.map((r) => [r.day, Number(r.avg_val)]));
+  const orderMap = new Map(orderRows.map((r) => [r.day, Number(r.avg_val)]));
+  const allDays = Array.from(new Set([...auctionMap.keys(), ...orderMap.keys()])).sort();
+
+  return allDays.map((day) => ({
+    day,
+    avgAuction: auctionMap.has(day) ? auctionMap.get(day)! : null,
+    avgOrder: orderMap.has(day) ? orderMap.get(day)! : null,
+  }));
 }
 
 export type PlayerPoint = { t: number; avg: number; max: number };

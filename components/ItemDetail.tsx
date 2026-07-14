@@ -9,6 +9,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -32,6 +35,12 @@ type Detail = {
   changes: { changedAt: string; startValue: number; currentPrice: number }[];
 };
 
+type MarketPoint = {
+  day: string;
+  avgAuction: number | null;
+  avgOrder: number | null;
+};
+
 const RANGES = [
   { key: "14d", label: "14 Tage" },
   { key: "30d", label: "30 Tage" },
@@ -39,21 +48,39 @@ const RANGES = [
   { key: "all", label: "Alles" },
 ] as const;
 
+/** "2026-07-13" → "13.07." */
+function formatDay(day: string): string {
+  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return day;
+  return `${m[3]}.${m[2]}.`;
+}
+
 export default function ItemDetail({ material }: { material: string }) {
   const [range, setRange] = useState<string>("14d");
   const [data, setData] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [market, setMarket] = useState<MarketPoint[]>([]);
+  const [marketLoading, setMarketLoading] = useState(true);
 
   const load = useCallback(
     async (r: string) => {
       setLoading(true);
+      setMarketLoading(true);
       try {
-        const res = await fetch(`/api/items/${material}?range=${r}`);
-        setData((await res.json()) as Detail);
+        const [detailRes, marketRes] = await Promise.all([
+          fetch(`/api/items/${material}?range=${r}`),
+          fetch(`/api/items/${material}/market?range=${r}`),
+        ]);
+        setData((await detailRes.json()) as Detail);
+        const mj = await marketRes.json();
+        if (mj.ok && Array.isArray(mj.data)) setMarket(mj.data);
+        else setMarket([]);
       } catch {
         setData(null);
+        setMarket([]);
       } finally {
         setLoading(false);
+        setMarketLoading(false);
       }
     },
     [material]
@@ -64,10 +91,11 @@ export default function ItemDetail({ material }: { material: string }) {
   }, [range, load]);
 
   const name = formatMaterialName(material);
-  // Änderungsmarker nur anzeigen, wenn sie im geladenen Zeitraum liegen
   const firstTs = data?.history[0]?.ts ?? null;
   const visibleChanges =
     data?.changes.filter((c) => firstTs !== null && c.changedAt >= firstTs) ?? [];
+
+  const hasMarketData = market.some((p) => p.avgAuction !== null || p.avgOrder !== null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -164,7 +192,6 @@ export default function ItemDetail({ material }: { material: string }) {
                 labelFormatter={(ts) => formatTs(String(ts))}
                 formatter={(value) => [`$${formatMoney(Number(value))}`, "Preis"]}
               />
-              {/* Admin-Änderungen als Marker */}
               {visibleChanges.map((c, i) => (
                 <ReferenceLine
                   key={i}
@@ -187,6 +214,77 @@ export default function ItemDetail({ material }: { material: string }) {
                 fill="url(#price)"
               />
             </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Marktpreis-Graph: Auktionshaus + Orders */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <h2 className="mb-2 px-2 text-sm font-medium text-neutral-400">
+          Ø Marktpreise (täglich)
+        </h2>
+        <p className="mb-4 px-2 text-xs text-neutral-600">
+          Durchschnittspreis verkaufter Auktionen und gelieferter Kaufaufträge pro Tag
+        </p>
+        {marketLoading ? (
+          <div className="flex h-60 items-center justify-center text-neutral-500">Lade…</div>
+        ) : !hasMarketData ? (
+          <div className="flex h-60 items-center justify-center text-neutral-500">
+            Noch keine Marktdaten vorhanden.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={market} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tickFormatter={formatDay}
+                stroke="#525252"
+                tick={{ fill: "#737373", fontSize: 12 }}
+                minTickGap={40}
+              />
+              <YAxis
+                domain={["auto", "auto"]}
+                stroke="#525252"
+                tick={{ fill: "#737373", fontSize: 12 }}
+                tickFormatter={(v) => `$${v}`}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "#171717",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 12,
+                  color: "#ededed",
+                }}
+                labelFormatter={(d) => formatDay(String(d))}
+                formatter={(value, name) => [
+                  `$${formatMoney(Number(value))}`,
+                  name === "avgAuction" ? "Ø Auktionshaus" : "Ø Kaufauftrag",
+                ]}
+              />
+              <Legend
+                formatter={(v) =>
+                  v === "avgAuction" ? "Ø Auktionshaus" : "Ø Kaufauftrag"
+                }
+                wrapperStyle={{ fontSize: 12, color: "#737373" }}
+              />
+              <Line
+                type="monotone"
+                dataKey="avgAuction"
+                stroke="#a78bfa"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="avgOrder"
+                stroke="#fb923c"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+            </LineChart>
           </ResponsiveContainer>
         )}
       </div>
@@ -232,8 +330,6 @@ export default function ItemDetail({ material }: { material: string }) {
   );
 }
 
-/** Nächstliegenden Historie-Zeitstempel zu einem Änderungszeitpunkt finden
- *  (ReferenceLine braucht einen X-Wert, der in den Daten existiert). */
 function nearestTs(history: { ts: string }[], target: string): string {
   let best = history[0]?.ts ?? target;
   for (const h of history) {
@@ -251,3 +347,6 @@ function InfoCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
+
