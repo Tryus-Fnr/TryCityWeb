@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import { getAdminStatus } from "@/lib/auth";
+import { getAdminStatus, getModStatus } from "@/lib/auth";
 import TabCarousel, { type CarouselTab } from "@/components/TabCarousel";
 import EconomyLeaderboards from "@/components/EconomyLeaderboards";
 
@@ -79,6 +79,7 @@ const features: Feature[] = [
 
 export default async function Home() {
   const isAdmin = await getAdminStatus();
+  const isMod = isAdmin || await getModStatus();
 
   const tabs: CarouselTab[] = [
     {
@@ -170,6 +171,14 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* ── WIRTSCHAFT BESTENLISTEN ── */}
+      <section className="border-b border-white/[0.06] py-16">
+        <div className="mb-8 text-center">
+          <h2 className="text-2xl font-bold">Bestenlisten</h2>
+        </div>
+        <EconomyLeaderboards isMod={isMod} />
+      </section>
+
       {/* ── FEATURE SECTIONS ── */}
       <div className="divide-y divide-white/[0.06]">
         {features.map((feature, i) => (
@@ -180,20 +189,6 @@ export default async function Home() {
           />
         ))}
       </div>
-
-      {/* ── WIRTSCHAFT BESTENLISTEN ── */}
-      <section className="border-b border-white/[0.06] py-16">
-        <div className="mb-8 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
-            Dynamische Wirtschaft
-          </p>
-          <h2 className="mt-2 text-2xl font-bold">Bestenlisten</h2>
-          <p className="mt-2 text-sm text-neutral-600">
-            Die reichsten Spieler und wer am längsten online war – live wie ingame
-          </p>
-        </div>
-        <EconomyLeaderboards />
-      </section>
 
       {/* ── SERVER SCREENSHOTS PLACEHOLDER ── */}
       <section className="border-b border-white/[0.06] py-16">

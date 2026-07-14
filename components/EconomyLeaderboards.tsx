@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 
-type Entry = { name: string; value: number };
+type Entry = { uuid: string; name: string; value: number };
 
 function getAvatarUrl(name: string) {
   return `https://mc-heads.net/avatar/${encodeURIComponent(name)}/32`;
@@ -18,8 +19,7 @@ function formatPlaytime(ms: number): string {
   return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-const rankEmoji = ["🥇", "🥈", "🥉"];
-const rankColor = [
+const rankColors = [
   "text-yellow-400",
   "text-neutral-300",
   "text-amber-600",
@@ -32,6 +32,7 @@ function LeaderboardRow({
   formatValue,
   accentClass,
   barClass,
+  isMod,
 }: {
   entry: Entry;
   rank: number;
@@ -39,17 +40,27 @@ function LeaderboardRow({
   formatValue: (v: number) => string;
   accentClass: string;
   barClass: string;
+  isMod: boolean;
 }) {
   const barWidth = max > 0 ? (entry.value / max) * 100 : 0;
-  const rc = rank <= 3 ? rankColor[rank - 1] : "text-neutral-500";
+  const rc = rank <= 3 ? rankColors[rank - 1] : "text-neutral-500";
+
+  const nameEl = isMod ? (
+    <Link
+      href={`/mod/player/${entry.uuid}`}
+      className="font-semibold text-neutral-100 text-sm truncate hover:text-white hover:underline transition-colors"
+    >
+      {entry.name}
+    </Link>
+  ) : (
+    <span className="font-semibold text-neutral-100 text-sm truncate">{entry.name}</span>
+  );
 
   return (
-    <div
-      className={`flex items-center gap-3 rounded-none border border-white/10 bg-white/[0.03] px-4 py-3 transition-colors hover:border-white/20 hover:bg-white/[0.05]`}
-    >
+    <div className="flex items-center gap-3 border-b border-white/[0.06] last:border-b-0 bg-white/[0.03] px-4 py-3 transition-colors hover:bg-white/[0.05]">
       {/* Rang */}
-      <span className={`w-7 shrink-0 text-center text-base font-bold ${rc}`}>
-        {rank <= 3 ? rankEmoji[rank - 1] : `#${rank}`}
+      <span className={`w-6 shrink-0 text-center text-sm font-bold tabular-nums ${rc}`}>
+        #{rank}
       </span>
 
       {/* Avatar */}
@@ -59,7 +70,7 @@ function LeaderboardRow({
         alt={entry.name}
         width={28}
         height={28}
-        className="shrink-0"
+        className="shrink-0 rounded"
         style={{ imageRendering: "pixelated" }}
         onError={(e) => {
           (e.currentTarget as HTMLImageElement).src =
@@ -70,16 +81,14 @@ function LeaderboardRow({
       {/* Name + Bar */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold text-neutral-100 text-sm truncate">
-            {entry.name}
-          </span>
-          <span className={`shrink-0 text-sm font-bold ${accentClass}`}>
+          {nameEl}
+          <span className={`shrink-0 text-sm font-bold tabular-nums ${accentClass}`}>
             {formatValue(entry.value)}
           </span>
         </div>
-        <div className="mt-1 h-1 bg-white/10">
+        <div className="mt-1.5 h-1 rounded-full bg-white/10">
           <div
-            className={`h-full ${barClass} transition-all`}
+            className={`h-full rounded-full ${barClass} transition-all`}
             style={{ width: `${barWidth}%` }}
           />
         </div>
@@ -90,20 +99,20 @@ function LeaderboardRow({
 
 function LeaderboardPanel({
   title,
-  emoji,
   apiUrl,
   formatValue,
   accentClass,
   barClass,
   labelColor,
+  isMod,
 }: {
   title: string;
-  emoji: string;
   apiUrl: string;
   formatValue: (v: number) => string;
   accentClass: string;
   barClass: string;
   labelColor: string;
+  isMod: boolean;
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,45 +132,42 @@ function LeaderboardPanel({
   const max = entries.length > 0 ? entries[0].value : 1;
 
   return (
-    <div className="flex flex-col gap-0 flex-1 min-w-0">
-      {/* Header – like ingame scoreboard title */}
-      <div
-        className={`flex items-center gap-2 px-4 py-2.5 border border-white/10 bg-white/[0.06] border-b-0`}
-      >
-        <span className="text-lg">{emoji}</span>
+    <div className="flex flex-col flex-1 min-w-0 overflow-hidden rounded-2xl border border-white/10">
+      {/* Header */}
+      <div className={`px-4 py-3 border-b border-white/10 bg-white/[0.05]`}>
         <span className={`font-black tracking-wide text-sm uppercase ${labelColor}`}>
           {title}
         </span>
       </div>
 
       {loading && (
-        <div className="border border-white/10 border-t-0 bg-white/[0.02] px-4 py-8 text-center text-xs text-neutral-500">
+        <div className="bg-white/[0.02] px-4 py-8 text-center text-xs text-neutral-500">
           Lade…
         </div>
       )}
       {error && (
-        <div className="border border-red-500/30 border-t-0 bg-red-500/5 px-4 py-8 text-center text-xs text-red-400">
+        <div className="bg-red-500/5 px-4 py-8 text-center text-xs text-red-400">
           Nicht verfügbar
         </div>
       )}
       {!loading && !error && entries.length === 0 && (
-        <div className="border border-white/10 border-t-0 bg-white/[0.02] px-4 py-8 text-center text-xs text-neutral-500">
+        <div className="bg-white/[0.02] px-4 py-8 text-center text-xs text-neutral-500">
           Keine Einträge
         </div>
       )}
       {!loading && !error && entries.length > 0 && (
         <div className="flex flex-col">
           {entries.map((e, i) => (
-            <div key={e.name} className={i > 0 ? "border-t-0" : ""}>
-              <LeaderboardRow
-                entry={e}
-                rank={i + 1}
-                max={max}
-                formatValue={formatValue}
-                accentClass={accentClass}
-                barClass={barClass}
-              />
-            </div>
+            <LeaderboardRow
+              key={e.uuid}
+              entry={e}
+              rank={i + 1}
+              max={max}
+              formatValue={formatValue}
+              accentClass={accentClass}
+              barClass={barClass}
+              isMod={isMod}
+            />
           ))}
         </div>
       )}
@@ -169,28 +175,27 @@ function LeaderboardPanel({
   );
 }
 
-export default function EconomyLeaderboards() {
+export default function EconomyLeaderboards({ isMod = false }: { isMod?: boolean }) {
   return (
-    <div className="flex flex-col gap-6 sm:flex-row sm:gap-4 lg:gap-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
       <LeaderboardPanel
         title="Top Geld"
-        emoji="💰"
         apiUrl="/api/leaderboard/money"
         formatValue={(v) => `${formatMoney(v)} $`}
         accentClass="text-amber-400"
         barClass="bg-amber-500"
         labelColor="text-amber-400"
+        isMod={isMod}
       />
       <LeaderboardPanel
         title="Top Spielzeit"
-        emoji="⏱️"
         apiUrl="/api/leaderboard/playtime"
         formatValue={formatPlaytime}
         accentClass="text-sky-400"
         barClass="bg-sky-500"
         labelColor="text-sky-400"
+        isMod={isMod}
       />
     </div>
   );
 }
-

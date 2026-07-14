@@ -797,6 +797,7 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
 // ─── Wirtschaft-Bestenlisten ────────────────────────────────────────────────
 
 export type LeaderboardEntry = {
+  uuid: string;
   name: string;
   value: number;
 };
@@ -806,8 +807,8 @@ export type LeaderboardEntry = {
  * Spieler mit Setting "konto" != 0 werden ausgeblendet.
  */
 export async function loadTopMoney(limit = 10): Promise<LeaderboardEntry[]> {
-  const rows = await query<{ name: string; val: string }>(
-    `SELECT e.\`name\` AS name, e.\`balance\` AS val
+  const rows = await query<{ uuid: string; name: string; val: string }>(
+    `SELECT e.\`uuid\` AS uuid, e.\`name\` AS name, e.\`balance\` AS val
      FROM \`smpg_economy\` e
      LEFT JOIN \`tryus_player_settings\` s
        ON s.\`player_uuid\` = e.\`uuid\` AND s.\`setting_key\` = 'konto'
@@ -816,7 +817,7 @@ export async function loadTopMoney(limit = 10): Promise<LeaderboardEntry[]> {
      ORDER BY e.\`balance\` DESC LIMIT ?`,
     [limit]
   );
-  return rows.map((r) => ({ name: r.name, value: Number(r.val) }));
+  return rows.map((r) => ({ uuid: r.uuid, name: r.name, value: Number(r.val) }));
 }
 
 /**
@@ -824,8 +825,8 @@ export async function loadTopMoney(limit = 10): Promise<LeaderboardEntry[]> {
  * Spieler mit Setting "playtime_hover" != 0 werden ausgeblendet.
  */
 export async function loadTopPlaytime(limit = 10): Promise<LeaderboardEntry[]> {
-  const rows = await query<{ name: string; val: string }>(
-    `SELECT p.\`name\` AS name, p.\`onlineTime\` AS val
+  const rows = await query<{ uuid: string; name: string; val: string }>(
+    `SELECT p.\`uuid\` AS uuid, p.\`name\` AS name, p.\`onlineTime\` AS val
      FROM \`tryus_players\` p
      LEFT JOIN \`tryus_player_settings\` s
        ON s.\`player_uuid\` = p.\`uuid\` AND s.\`setting_key\` = 'playtime_hover'
@@ -834,7 +835,7 @@ export async function loadTopPlaytime(limit = 10): Promise<LeaderboardEntry[]> {
      ORDER BY p.\`onlineTime\` DESC LIMIT ?`,
     [limit]
   );
-  return rows.map((r) => ({ name: r.name, value: Number(r.val) }));
+  return rows.map((r) => ({ uuid: r.uuid, name: r.name, value: Number(r.val) }));
 }
 
 // ─── LuckPerms Admin-Check ─────────────────────────────────────────────────
