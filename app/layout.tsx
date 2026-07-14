@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { isSessionRevoked, loadIsAdmin, loadIsMod } from "@/lib/queries";
+import CookieBanner from "@/components/CookieBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -114,12 +115,19 @@ export default async function RootLayout({
               >
                 Datenschutz
               </Link>
+              <Link
+                href="/credits"
+                className="text-xs text-neutral-600 transition-colors hover:text-neutral-400"
+              >
+                Credits
+              </Link>
             </div>
             <p className="text-xs text-neutral-600">
               TryCity Netzwerk · Alle Daten live vom Server
             </p>
           </div>
         </footer>
+        <CookieBanner />
       </body>
     </html>
   );

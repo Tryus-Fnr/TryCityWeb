@@ -794,6 +794,49 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
   };
 }
 
+// ─── Wirtschaft-Bestenlisten ────────────────────────────────────────────────
+
+export type LeaderboardEntry = {
+  name: string;
+  value: number;
+};
+
+/**
+ * Top-N nach Geld (balance) absteigend.
+ * Spieler mit Setting "konto" != 0 werden ausgeblendet.
+ */
+export async function loadTopMoney(limit = 10): Promise<LeaderboardEntry[]> {
+  const rows = await query<{ name: string; val: string }>(
+    `SELECT e.\`name\` AS name, e.\`balance\` AS val
+     FROM \`smpg_economy\` e
+     LEFT JOIN \`tryus_player_settings\` s
+       ON s.\`player_uuid\` = e.\`uuid\` AND s.\`setting_key\` = 'konto'
+     WHERE e.\`name\` IS NOT NULL
+       AND COALESCE(s.\`setting_value\`, 0) = 0
+     ORDER BY e.\`balance\` DESC LIMIT ?`,
+    [limit]
+  );
+  return rows.map((r) => ({ name: r.name, value: Number(r.val) }));
+}
+
+/**
+ * Top-N nach Spielzeit (onlineTime in ms) absteigend.
+ * Spieler mit Setting "playtime_hover" != 0 werden ausgeblendet.
+ */
+export async function loadTopPlaytime(limit = 10): Promise<LeaderboardEntry[]> {
+  const rows = await query<{ name: string; val: string }>(
+    `SELECT p.\`name\` AS name, p.\`onlineTime\` AS val
+     FROM \`tryus_players\` p
+     LEFT JOIN \`tryus_player_settings\` s
+       ON s.\`player_uuid\` = p.\`uuid\` AND s.\`setting_key\` = 'playtime_hover'
+     WHERE p.\`name\` IS NOT NULL
+       AND COALESCE(s.\`setting_value\`, 0) = 0
+     ORDER BY p.\`onlineTime\` DESC LIMIT ?`,
+    [limit]
+  );
+  return rows.map((r) => ({ name: r.name, value: Number(r.val) }));
+}
+
 // ─── LuckPerms Admin-Check ─────────────────────────────────────────────────
 
 /**
