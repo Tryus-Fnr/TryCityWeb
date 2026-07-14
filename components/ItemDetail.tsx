@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ItemIcon from "@/components/ItemIcon";
 import {
   Area,
-  AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
-  Legend,
+  ComposedChart,
+  BarChart,
   Line,
-  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -41,6 +39,20 @@ type MarketPoint = {
   avgOrder: number | null;
 };
 
+type MergedPoint = {
+  ts: string;
+  price: number;
+  sold: number;
+  avgAuction: number | null;
+  avgOrder: number | null;
+};
+
+const SERIES = [
+  { key: "price",      label: "Shoppreis",      color: "#34d399" },
+  { key: "avgAuction", label: "Ø Auktionshaus", color: "#a78bfa" },
+  { key: "avgOrder",   label: "Ø Kaufauftrag",  color: "#fb923c" },
+] as const;
+
 const RANGES = [
   { key: "14d", label: "14 Tage" },
   { key: "30d", label: "30 Tage" },
@@ -48,24 +60,16 @@ const RANGES = [
   { key: "all", label: "Alles" },
 ] as const;
 
-/** "2026-07-13" → "13.07." */
-function formatDay(day: string): string {
-  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return day;
-  return `${m[3]}.${m[2]}.`;
-}
-
 export default function ItemDetail({ material }: { material: string }) {
   const [range, setRange] = useState<string>("14d");
   const [data, setData] = useState<Detail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [market, setMarket] = useState<MarketPoint[]>([]);
-  const [marketLoading, setMarketLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
 
   const load = useCallback(
     async (r: string) => {
       setLoading(true);
-      setMarketLoading(true);
       try {
         const [detailRes, marketRes] = await Promise.all([
           fetch(`/api/items/${material}?range=${r}`),
@@ -73,29 +77,43 @@ export default function ItemDetail({ material }: { material: string }) {
         ]);
         setData((await detailRes.json()) as Detail);
         const mj = await marketRes.json();
-        if (mj.ok && Array.isArray(mj.data)) setMarket(mj.data);
-        else setMarket([]);
+        setMarket(mj.ok && Array.isArray(mj.data) ? mj.data : []);
       } catch {
         setData(null);
         setMarket([]);
       } finally {
         setLoading(false);
-        setMarketLoading(false);
       }
     },
     [material]
   );
 
-  useEffect(() => {
-    load(range);
-  }, [range, load]);
+  useEffect(() => { load(range); }, [range, load]);
+
+  // Merge price history with daily market averages
+  const merged = useMemo<MergedPoint[]>(() => {
+    if (!data?.history) return [];
+    const byDay = new Map<string, { avgAuction: number | null; avgOrder: number | null }>();
+    for (const m of market) byDay.set(m.day, { avgAuction: m.avgAuction, avgOrder: m.avgOrder });
+    return data.history.map((h) => {
+      const day = h.ts.split(" ")[0]; // "2026-07-13"
+      const mkt = byDay.get(day);
+      return { ...h, avgAuction: mkt?.avgAuction ?? null, avgOrder: mkt?.avgOrder ?? null };
+    });
+  }, [data?.history, market]);
+
+  const toggleSeries = (key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
 
   const name = formatMaterialName(material);
   const firstTs = data?.history[0]?.ts ?? null;
   const visibleChanges =
     data?.changes.filter((c) => firstTs !== null && c.changedAt >= firstTs) ?? [];
-
-  const hasMarketData = market.some((p) => p.avgAuction !== null || p.avgOrder !== null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -150,146 +168,133 @@ export default function ItemDetail({ material }: { material: string }) {
         ))}
       </div>
 
-      {/* Preis-Graph */}
+      {/* ── Kombinierter Preisvergleich-Graph ── */}
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <h2 className="mb-2 px-2 text-sm font-medium text-neutral-400">Preisverlauf</h2>
+        <div className="mb-1 px-2 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-neutral-400">Preisvergleich</h2>
+          <span className="text-xs text-neutral-600">Legende anklicken zum Ein-/Ausblenden</span>
+        </div>
+
         {loading ? (
-          <div className="flex h-72 items-center justify-center text-neutral-500">Lade…</div>
-        ) : !data?.ok || data.history.length === 0 ? (
-          <div className="flex h-72 items-center justify-center text-neutral-500">
-            {data?.error ?? "Noch keine Verlaufsdaten für diesen Zeitraum."}
+          <div className="flex h-80 items-center justify-center text-neutral-500">Lade…</div>
+        ) : !data?.ok || merged.length === 0 ? (
+          <div className="flex h-80 items-center justify-center text-neutral-500">
+            {data?.error ?? "Keine Daten für diesen Zeitraum."}
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={data.history} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <defs>
-                <linearGradient id="price" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#34d399" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis
-                dataKey="ts"
-                tickFormatter={formatTs}
-                stroke="#525252"
-                tick={{ fill: "#737373", fontSize: 12 }}
-                minTickGap={60}
-              />
-              <YAxis
-                domain={["auto", "auto"]}
-                stroke="#525252"
-                tick={{ fill: "#737373", fontSize: 12 }}
-                tickFormatter={(v) => `$${v}`}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#171717",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 12,
-                  color: "#ededed",
-                }}
-                labelFormatter={(ts) => formatTs(String(ts))}
-                formatter={(value) => [`$${formatMoney(Number(value))}`, "Preis"]}
-              />
-              {visibleChanges.map((c, i) => (
-                <ReferenceLine
-                  key={i}
-                  x={nearestTs(data.history, c.changedAt)}
-                  stroke="#f59e0b"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: "Änderung",
-                    fill: "#f59e0b",
-                    fontSize: 10,
-                    position: "insideTopRight",
-                  }}
+          <>
+            {/* Klickbare Legende */}
+            <div className="mb-4 flex flex-wrap gap-3 px-2">
+              {SERIES.map((s) => {
+                const off = hidden.has(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => toggleSeries(s.key)}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all border"
+                    style={{
+                      borderColor: off ? "rgba(255,255,255,0.1)" : s.color + "55",
+                      background: off ? "transparent" : s.color + "14",
+                      color: off ? "#525252" : s.color,
+                      opacity: off ? 0.5 : 1,
+                    }}
+                  >
+                    <span
+                      className="inline-block h-2 w-4 rounded-full"
+                      style={{ background: off ? "#525252" : s.color }}
+                    />
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={merged} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="grad-price" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis
+                  dataKey="ts"
+                  tickFormatter={formatTs}
+                  stroke="#525252"
+                  tick={{ fill: "#737373", fontSize: 12 }}
+                  minTickGap={60}
                 />
-              ))}
-              <Area
-                type="monotone"
-                dataKey="price"
-                stroke="#34d399"
-                strokeWidth={2}
-                fill="url(#price)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+                <YAxis
+                  domain={["auto", "auto"]}
+                  stroke="#525252"
+                  tick={{ fill: "#737373", fontSize: 12 }}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "#171717",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 12,
+                    color: "#ededed",
+                  }}
+                  labelFormatter={(ts) => formatTs(String(ts))}
+                  formatter={(value, key) => {
+                    const s = SERIES.find((x) => x.key === key);
+                    return [`$${formatMoney(Number(value))}`, s?.label ?? String(key)];
+                  }}
+                  filterNull
+                />
+                {/* Admin-Änderungsmarker */}
+                {visibleChanges.map((c, i) => (
+                  <ReferenceLine
+                    key={i}
+                    x={nearestTs(data.history, c.changedAt)}
+                    stroke="#f59e0b"
+                    strokeDasharray="4 4"
+                    label={{ value: "Änderung", fill: "#f59e0b", fontSize: 10, position: "insideTopRight" }}
+                  />
+                ))}
+                {/* Shoppreis als Area */}
+                <Area
+                  type="monotone"
+                  dataKey="price"
+                  stroke="#34d399"
+                  strokeWidth={hidden.has("price") ? 0 : 2}
+                  fill={hidden.has("price") ? "none" : "url(#grad-price)"}
+                  hide={hidden.has("price")}
+                  dot={false}
+                  legendType="none"
+                />
+                {/* Ø Auktionshaus */}
+                <Line
+                  type="monotone"
+                  dataKey="avgAuction"
+                  stroke="#a78bfa"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  hide={hidden.has("avgAuction")}
+                  legendType="none"
+                />
+                {/* Ø Kaufauftrag */}
+                <Line
+                  type="monotone"
+                  dataKey="avgOrder"
+                  stroke="#fb923c"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  hide={hidden.has("avgOrder")}
+                  legendType="none"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </>
         )}
       </div>
 
-      {/* Marktpreis-Graph: Auktionshaus + Orders */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <h2 className="mb-2 px-2 text-sm font-medium text-neutral-400">
-          Ø Marktpreise (täglich)
-        </h2>
-        <p className="mb-4 px-2 text-xs text-neutral-600">
-          Durchschnittspreis verkaufter Auktionen und gelieferter Kaufaufträge pro Tag
-        </p>
-        {marketLoading ? (
-          <div className="flex h-60 items-center justify-center text-neutral-500">Lade…</div>
-        ) : !hasMarketData ? (
-          <div className="flex h-60 items-center justify-center text-neutral-500">
-            Noch keine Marktdaten vorhanden.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={market} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis
-                dataKey="day"
-                tickFormatter={formatDay}
-                stroke="#525252"
-                tick={{ fill: "#737373", fontSize: 12 }}
-                minTickGap={40}
-              />
-              <YAxis
-                domain={["auto", "auto"]}
-                stroke="#525252"
-                tick={{ fill: "#737373", fontSize: 12 }}
-                tickFormatter={(v) => `$${v}`}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#171717",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 12,
-                  color: "#ededed",
-                }}
-                labelFormatter={(d) => formatDay(String(d))}
-                formatter={(value, name) => [
-                  `$${formatMoney(Number(value))}`,
-                  name === "avgAuction" ? "Ø Auktionshaus" : "Ø Kaufauftrag",
-                ]}
-              />
-              <Legend
-                formatter={(v) =>
-                  v === "avgAuction" ? "Ø Auktionshaus" : "Ø Kaufauftrag"
-                }
-                wrapperStyle={{ fontSize: 12, color: "#737373" }}
-              />
-              <Line
-                type="monotone"
-                dataKey="avgAuction"
-                stroke="#a78bfa"
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-              />
-              <Line
-                type="monotone"
-                dataKey="avgOrder"
-                stroke="#fb923c"
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Volumen-Graph */}
+      {/* Volumen-Graph (bleibt separat) */}
       {data?.ok && data.history.length > 0 && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <h2 className="mb-2 px-2 text-sm font-medium text-neutral-400">
@@ -347,6 +352,4 @@ function InfoCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-
 
