@@ -1108,3 +1108,144 @@ export async function loadMapPixels(
   if (rows.length === 0 || rows[0].pixels === null) return null;
   return { pixels: rows[0].pixels, pixelHash: String(rows[0].pixel_hash) };
 }
+
+// ─── Creator-Codes ─────────────────────────────────────────────────────────
+
+export type CreatorCodeRow = {
+  code: string;
+  ownerUuid: string;
+  ownerName: string;
+  createdAt: string;
+};
+
+/** @returns der Code des Spielers, oder null wenn er keiner ist. */
+export async function loadCreatorCodeByOwner(
+  uuid: string
+): Promise<CreatorCodeRow | null> {
+  const rows = await query<{
+    code: string;
+    owner_uuid: string;
+    owner_name: string;
+    created_at: string;
+  }>(
+    `SELECT code, owner_uuid, owner_name, created_at
+     FROM smpg_creator_codes
+     WHERE owner_uuid = ?
+     LIMIT 1`,
+    [uuid]
+  );
+  if (rows.length === 0) return null;
+  return {
+    code: rows[0].code,
+    ownerUuid: rows[0].owner_uuid,
+    ownerName: rows[0].owner_name,
+    createdAt: rows[0].created_at,
+  };
+}
+
+export type CreatorStats = {
+  currentUsers: number;
+  users30d: number;
+  usersTotal: number;
+  gemsTotal: number;
+  gems30d: number;
+  purchasesTotal: number;
+};
+
+/**
+ * Nutzerzahlen zählen DISTINCT Spieler – trägt jemand denselben Code erneut
+ * ein, zählt er weiterhin nur einmal.
+ */
+export async function loadCreatorStats(code: string): Promise<CreatorStats> {
+  const [current, last30, total, earnings] = await Promise.all([
+    query<{ n: string }>(
+      `SELECT COUNT(DISTINCT player_uuid) AS n
+       FROM smpg_creator_code_uses
+       WHERE code = ? AND ended_at IS NULL AND expires_at > NOW()`,
+      [code]
+    ),
+    query<{ n: string }>(
+      `SELECT COUNT(DISTINCT player_uuid) AS n
+       FROM smpg_creator_code_uses
+       WHERE code = ? AND entered_at >= NOW() - INTERVAL 30 DAY`,
+      [code]
+    ),
+    query<{ n: string }>(
+      `SELECT COUNT(DISTINCT player_uuid) AS n
+       FROM smpg_creator_code_uses
+       WHERE code = ?`,
+      [code]
+    ),
+    query<{ gems: string; gems30: string; purchases: string }>(
+      `SELECT COALESCE(SUM(gems), 0) AS gems,
+              COALESCE(SUM(CASE WHEN day >= CURDATE() - INTERVAL 30 DAY THEN gems ELSE 0 END), 0) AS gems30,
+              COALESCE(SUM(purchases), 0) AS purchases
+       FROM smpg_creator_earnings
+       WHERE code = ?`,
+      [code]
+    ),
+  ]);
+
+  return {
+    currentUsers: Number(current[0]?.n ?? 0),
+    users30d: Number(last30[0]?.n ?? 0),
+    usersTotal: Number(total[0]?.n ?? 0),
+    gemsTotal: Number(earnings[0]?.gems ?? 0),
+    gems30d: Number(earnings[0]?.gems30 ?? 0),
+    purchasesTotal: Number(earnings[0]?.purchases ?? 0),
+  };
+}
+
+export type CreatorEarningDay = {
+  day: string;
+  gems: number;
+  purchases: number;
+};
+
+/** Verdienst pro Tag (ein Eintrag je Tag, neueste zuerst). */
+export async function loadCreatorEarnings(
+  code: string,
+  days: number
+): Promise<CreatorEarningDay[]> {
+  const rows = await query<{ day: string; gems: string; purchases: string }>(
+    `SELECT day, gems, purchases
+     FROM smpg_creator_earnings
+     WHERE code = ? AND day >= CURDATE() - INTERVAL ? DAY
+     ORDER BY day DESC`,
+    [code, days]
+  );
+  return rows.map((r) => ({
+    day: r.day,
+    gems: Number(r.gems),
+    purchases: Number(r.purchases),
+  }));
+}
+
+export type CreatorUserRow = {
+  playerName: string;
+  enteredAt: string;
+  expiresAt: string;
+};
+
+/** Aktuell eingetragene Spieler (neueste zuerst). */
+export async function loadCreatorActiveUsers(
+  code: string
+): Promise<CreatorUserRow[]> {
+  const rows = await query<{
+    player_name: string;
+    entered_at: string;
+    expires_at: string;
+  }>(
+    `SELECT player_name, entered_at, expires_at
+     FROM smpg_creator_code_uses
+     WHERE code = ? AND ended_at IS NULL AND expires_at > NOW()
+     ORDER BY entered_at DESC
+     LIMIT 100`,
+    [code]
+  );
+  return rows.map((r) => ({
+    playerName: r.player_name,
+    enteredAt: r.entered_at,
+    expiresAt: r.expires_at,
+  }));
+}

@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { isSessionRevoked, loadIsAdmin, loadIsMod } from "@/lib/queries";
+import {
+  isSessionRevoked,
+  loadIsAdmin,
+  loadIsMod,
+  loadCreatorCodeByOwner,
+  type CreatorCodeRow,
+} from "@/lib/queries";
 
 /**
  * Gibt isAdmin zurück (false wenn nicht eingeloggt oder Sitzung widerrufen).
@@ -50,4 +56,34 @@ export async function getModStatus(): Promise<boolean> {
 export async function requireMod(): Promise<void> {
   const mod = await getModStatus();
   if (!mod) notFound();
+}
+
+/**
+ * Gibt den Creator-Code des eingeloggten Nutzers zurück – oder null, wenn er
+ * nicht eingeloggt ist, die Sitzung widerrufen wurde oder er kein Creator ist.
+ *
+ * Creator ist man nicht über eine Permission, sondern dadurch, dass einem ein
+ * Code gehört (vergeben im Spiel per /creatorcode set).
+ */
+export async function getCreatorCode(): Promise<CreatorCodeRow | null> {
+  try {
+    const session = await getSession();
+    if (!session?.uuid) return null;
+    const revoked = await isSessionRevoked(session.uuid, session.issuedAt);
+    if (revoked) return null;
+    return await loadCreatorCodeByOwner(session.uuid);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Wirft einen 404-Fehler, wenn der anfragende Nutzer kein Creator ist.
+ *
+ * @returns der Code des Creators
+ */
+export async function requireCreator(): Promise<CreatorCodeRow> {
+  const code = await getCreatorCode();
+  if (!code) notFound();
+  return code;
 }
