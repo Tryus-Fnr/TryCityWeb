@@ -76,6 +76,14 @@ const mainCredits: CreditMember[] = [
     icon: <Crown className="h-5 w-5" />,
   },
   {
+    name: "Leon_lp9",
+    roles: ["Developer", "Server Management"],
+    accent: "text-amber-400",
+    ring: "ring-amber-500/20",
+    iconBg: "bg-amber-500/10 text-amber-400",
+    icon: <Code2 className="h-5 w-5" />,
+  },
+  {
     name: "Matija",
     roles: ["Texture Designer", "3D Model Designer"],
     links: [
@@ -94,14 +102,6 @@ const mainCredits: CreditMember[] = [
     ring: "ring-sky-500/20",
     iconBg: "bg-sky-500/10 text-sky-400",
     icon: <Palette className="h-5 w-5" />,
-  },
-  {
-    name: "Leon_lp9",
-    roles: ["Developer", "Server Management"],
-    accent: "text-amber-400",
-    ring: "ring-amber-500/20",
-    iconBg: "bg-amber-500/10 text-amber-400",
-    icon: <Code2 className="h-5 w-5" />,
   },
 ];
 
