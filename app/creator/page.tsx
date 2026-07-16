@@ -17,13 +17,12 @@ function formatNumber(value: number): string {
   return value.toLocaleString("de-DE");
 }
 
-/** "2026-07-16 14:23:05" → "16.07.2026, 14:23" */
+/** "2026-07-16 14:23:05" → "14:23 Uhr, 16.07.2026" (erst Uhrzeit, ohne Sekunden) */
 function formatDateTime(value: string): string {
   const [date, time] = value.split(" ");
-  if (!date) return value;
+  if (!date || !time) return value;
   const [y, m, d] = date.split("-");
-  const hhmm = time ? time.slice(0, 5) : "";
-  return `${d}.${m}.${y}${hhmm ? `, ${hhmm}` : ""}`;
+  return `${time.slice(0, 5)} Uhr, ${d}.${m}.${y}`;
 }
 
 /** "2026-07-16" → "16.07." */
@@ -87,7 +86,7 @@ export default async function CreatorPage() {
             {code.code}
           </span>{" "}
           – Spieler tragen ihn im Gem-Shop ein. Du bekommst bei jedem Gem-Kauf
-          10&nbsp;% der ausgegebenen Gems obendrauf.
+          einen Anteil der ausgegebenen Gems obendrauf.
         </p>
       </div>
 
