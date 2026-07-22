@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart } from "lucide-react";
 
 type Props = {
   session: { name: string; isAdmin: boolean; isMod: boolean } | null;
@@ -75,6 +75,7 @@ export default function Navbar({ session }: Props) {
   // Flat list for mobile
   const mobileTabs = [
     { href: "/", label: "Startseite" },
+    { href: "https://shop.trycity.net", label: "Shop", external: true },
     ...MARKT_TABS.map((t) => ({ href: t.href, label: t.label })),
     { href: "/regelwerk", label: "Regelwerk" },
     ...(session?.isMod && !session?.isAdmin ? MOD_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
@@ -104,6 +105,17 @@ export default function Navbar({ session }: Props) {
           <Link href="/" className={topLinkClass(isActive("/"))}>
             Startseite
           </Link>
+
+          {/* Shop */}
+          <a
+            href="https://shop.trycity.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={topLinkClass(false)}
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Shop
+          </a>
 
           {/* Markt Dropdown */}
           <div className="relative" ref={marktRef}>
@@ -295,20 +307,34 @@ export default function Navbar({ session }: Props) {
       {menuOpen && (
         <div className="border-t border-white/10 px-4 py-3 md:hidden">
           <div className="flex flex-col gap-0.5">
-            {mobileTabs.map((tab) => (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                onClick={() => setMenuOpen(false)}
-                className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive(tab.href)
-                    ? "bg-sky-500/15 text-sky-300"
-                    : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            ))}
+            {mobileTabs.map((tab) => {
+              const cls = `rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                !("external" in tab) && isActive(tab.href)
+                  ? "bg-sky-500/15 text-sky-300"
+                  : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
+              }`;
+              return "external" in tab ? (
+                <a
+                  key={tab.href}
+                  href={tab.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className={cls}
+                >
+                  {tab.label}
+                </a>
+              ) : (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={cls}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
