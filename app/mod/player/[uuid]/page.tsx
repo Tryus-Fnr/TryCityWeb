@@ -7,6 +7,7 @@ import {
   loadPlayerFriends,
   loadPlayerClan,
   loadPlayerAltAccounts,
+  loadPlayerAnticheatFlags,
 } from "@/lib/queries";
 import ModPlayerDetail from "@/components/mod/ModPlayerDetail";
 
@@ -29,12 +30,13 @@ export default async function ModPlayerPage({
   await requireMod();
   const { uuid } = await params;
 
-  const [player, punishments, friends, clan, altAccounts] = await Promise.all([
+  const [player, punishments, friends, clan, altAccounts, anticheatFlags] = await Promise.all([
     loadPlayerDetail(uuid).catch(() => null),
     loadPlayerPunishments(uuid).catch(() => []),
     loadPlayerFriends(uuid).catch(() => []),
     loadPlayerClan(uuid).catch(() => null),
     loadPlayerAltAccounts(uuid).catch(() => []),
+    loadPlayerAnticheatFlags(uuid).catch(() => []),
   ]);
 
   if (!player) notFound();
@@ -46,6 +48,7 @@ export default async function ModPlayerPage({
       friends={friends}
       clan={clan}
       altAccounts={altAccounts}
+      anticheatFlags={anticheatFlags}
     />
   );
 }

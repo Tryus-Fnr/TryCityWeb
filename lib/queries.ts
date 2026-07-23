@@ -622,6 +622,62 @@ export async function loadPlayerPunishments(uuid: string): Promise<PunishmentRow
   }));
 }
 
+export type AnticheatFlagRow = {
+  id: number;
+  checkId: string;
+  checkName: string;
+  category: string;
+  details: string;
+  server: string;
+  ping: number;
+  tps: number;
+  lagged: boolean;
+  createdAt: number;
+};
+
+/**
+ * Anticheat-Flags eines Spielers (aus tryus_anticheat_flags), neueste zuerst.
+ * Enthaelt Ping/TPS zum Zeitpunkt des Flags, damit Mods Fehl-Bans erkennen koennen.
+ * Faellt still auf [] zurueck, wenn die Tabelle (noch) nicht existiert.
+ */
+export async function loadPlayerAnticheatFlags(
+  uuid: string,
+  limit = 300
+): Promise<AnticheatFlagRow[]> {
+  const safeLimit = Math.max(1, Math.min(1000, Math.floor(limit)));
+  const rows = await query<{
+    id: number;
+    check_id: string;
+    check_name: string;
+    category: string | null;
+    details: string | null;
+    server: string | null;
+    ping: number | null;
+    tps: number | null;
+    lagged: number;
+    created_at: number;
+  }>(
+    `SELECT id, check_id, check_name, category, details, server, ping, tps, lagged, created_at
+     FROM tryus_anticheat_flags
+     WHERE uuid = ?
+     ORDER BY created_at DESC
+     LIMIT ${safeLimit}`,
+    [uuid]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    checkId: r.check_id,
+    checkName: r.check_name,
+    category: r.category ?? "",
+    details: r.details ?? "",
+    server: r.server ?? "",
+    ping: r.ping !== null ? Number(r.ping) : -1,
+    tps: r.tps !== null ? Number(r.tps) : 20,
+    lagged: r.lagged === 1,
+    createdAt: Number(r.created_at),
+  }));
+}
+
 export type FriendRow = {
   friendUuid: string;
   friendName: string;

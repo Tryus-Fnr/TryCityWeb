@@ -8,9 +8,11 @@ import type {
   FriendRow,
   PlayerClanInfo,
   AltAccountRow,
+  AnticheatFlagRow,
 } from "@/lib/queries";
 import {
   ShieldBan,
+  ShieldAlert,
   VolumeX,
   AlertTriangle,
   Footprints,
@@ -31,6 +33,7 @@ type Props = {
   friends: FriendRow[];
   clan: PlayerClanInfo | null;
   altAccounts: AltAccountRow[];
+  anticheatFlags: AnticheatFlagRow[];
 };
 
 type PunishType = "BAN" | "MUTE" | "WARN" | "KICK";
@@ -64,6 +67,19 @@ function formatOnlineTime(seconds: number) {
   return `${h}h ${m}m`;
 }
 
+function pingClass(ping: number) {
+  if (ping < 0) return "text-neutral-500";
+  if (ping > 300) return "text-red-400";
+  if (ping > 150) return "text-yellow-400";
+  return "text-green-400";
+}
+
+function tpsClass(tps: number) {
+  if (tps < 16) return "text-red-400";
+  if (tps < 19) return "text-yellow-400";
+  return "text-green-400";
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   function copy() {
@@ -79,8 +95,14 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-export default function ModPlayerDetail({ player, punishments, friends, clan, altAccounts }: Props) {
+export default function ModPlayerDetail({ player, punishments, friends, clan, altAccounts, anticheatFlags }: Props) {
   const [punishTab, setPunishTab] = useState<PunishType | "ALL">("ALL");
+  const [acCheckFilter, setAcCheckFilter] = useState<string>("ALL");
+
+  const acChecks = Array.from(new Set(anticheatFlags.map((f) => f.checkName))).sort();
+  const visibleFlags = anticheatFlags.filter(
+    (f) => acCheckFilter === "ALL" || f.checkName === acCheckFilter
+  );
 
   const visiblePunishments = punishments.filter(
     (p) => punishTab === "ALL" || p.type === punishTab
@@ -316,6 +338,86 @@ export default function ModPlayerDetail({ player, punishments, friends, clan, al
                         )}
                       </div>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Anticheat-Flags */}
+      <div className="rounded-xl border border-white/10 bg-white/[0.03]">
+        <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <ShieldAlert className="h-5 w-5 text-red-400" />
+              Anticheat-Flags
+              <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-neutral-400">
+                {anticheatFlags.length}
+              </span>
+            </h2>
+            <p className="mt-1 text-xs text-neutral-500">
+              Neueste zuerst · Ping/TPS zum Zeitpunkt des Flags helfen, Lag von echten Hacks zu unterscheiden.
+            </p>
+          </div>
+          {acChecks.length > 0 && (
+            <select
+              value={acCheckFilter}
+              onChange={(e) => setAcCheckFilter(e.target.value)}
+              className="rounded-lg border border-white/10 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300"
+            >
+              <option value="ALL">Alle Checks ({anticheatFlags.length})</option>
+              {acChecks.map((c) => (
+                <option key={c} value={c}>
+                  {c} ({anticheatFlags.filter((f) => f.checkName === c).length})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="p-4">
+          {visibleFlags.length === 0 ? (
+            <p className="py-8 text-center text-sm text-neutral-600">Keine Flags.</p>
+          ) : (
+            <div className="flex max-h-[34rem] flex-col gap-2 overflow-y-auto">
+              {visibleFlags.map((f) => {
+                const recent = Date.now() - f.createdAt < 10 * 60 * 1000;
+                return (
+                  <div
+                    key={f.id}
+                    className={`rounded-lg border border-white/[0.06] p-3 ${
+                      f.lagged
+                        ? "border-l-2 border-l-orange-500/60"
+                        : recent
+                          ? "border-l-2 border-l-red-500/50"
+                          : ""
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      <span className="text-sm font-bold text-red-300">{f.checkName}</span>
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-neutral-400">
+                        {f.category}
+                      </span>
+                      {f.lagged && (
+                        <span className="rounded-full bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-400">
+                          LAG
+                        </span>
+                      )}
+                      {recent && !f.lagged && (
+                        <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-400">
+                          &lt; 10 min
+                        </span>
+                      )}
+                      <span className="text-xs text-neutral-600">{formatDate(f.createdAt)}</span>
+                      {f.server && <span className="text-xs text-neutral-600">{f.server}</span>}
+                    </div>
+                    <p className="mt-1 break-words text-sm text-neutral-300">{f.details || "–"}</p>
+                    <p className="mt-0.5 text-xs">
+                      <span className={pingClass(f.ping)}>Ping {f.ping < 0 ? "?" : `${f.ping}ms`}</span>
+                      <span className="text-neutral-600"> · </span>
+                      <span className={tpsClass(f.tps)}>TPS {f.tps.toFixed(1)}</span>
+                    </p>
                   </div>
                 );
               })}
