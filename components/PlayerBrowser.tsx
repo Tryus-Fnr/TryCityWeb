@@ -169,7 +169,9 @@ function InventoryView({ uuid }: { uuid: string }) {
   const inv    = pad(data.inventory,  36, null);
   const main   = inv.slice(9, 36);
   const hotbar = inv.slice(0, 9);
-  const ender  = pad(data.enderChest, 27, null);
+  // Große Enderchest (54 Slots) automatisch erkennen
+  const enderSize = data.enderChest.length > 27 ? 54 : 27;
+  const ender  = pad(data.enderChest, enderSize, null);
   const armorDisplay: ParsedItem[] = [
     data.armor[3] ?? null,
     data.armor[2] ?? null,

@@ -11,6 +11,9 @@ type Props = {
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING:   "bg-yellow-500/15 text-yellow-400",
+  DONE:      "bg-green-500/15 text-green-400",
+  FAILED:    "bg-red-500/15 text-red-400",
+  // Legacy-Werte (falls ältere Einträge vorhanden)
   APPROVED:  "bg-green-500/15 text-green-400",
   DENIED:    "bg-red-500/15 text-red-400",
   PROCESSED: "bg-neutral-500/15 text-neutral-400",
@@ -18,9 +21,20 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
   PENDING:   <Clock className="h-3.5 w-3.5" />,
+  DONE:      <CheckCircle className="h-3.5 w-3.5" />,
+  FAILED:    <XCircle className="h-3.5 w-3.5" />,
   APPROVED:  <CheckCircle className="h-3.5 w-3.5" />,
   DENIED:    <XCircle className="h-3.5 w-3.5" />,
   PROCESSED: <CheckCircle className="h-3.5 w-3.5" />,
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING:   "Ausstehend",
+  DONE:      "Erledigt",
+  FAILED:    "Fehlgeschlagen",
+  APPROVED:  "Angenommen",
+  DENIED:    "Abgelehnt",
+  PROCESSED: "Verarbeitet",
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -29,7 +43,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ModPanel({ unbanRequests }: Props) {
-  const [filter, setFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "DENIED">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "PENDING" | "DONE" | "FAILED">("ALL");
   const [search, setSearch] = useState("");
 
   const filtered = unbanRequests.filter((r) => {
@@ -38,12 +52,13 @@ export default function ModPanel({ unbanRequests }: Props) {
     return true;
   });
 
-  const pending   = unbanRequests.filter((r) => r.status === "PENDING").length;
-  const approved  = unbanRequests.filter((r) => r.status === "APPROVED").length;
-  const denied    = unbanRequests.filter((r) => r.status === "DENIED").length;
+  const pending = unbanRequests.filter((r) => r.status === "PENDING").length;
+  const done    = unbanRequests.filter((r) => r.status === "DONE" || r.status === "APPROVED").length;
+  const failed  = unbanRequests.filter((r) => r.status === "FAILED" || r.status === "DENIED").length;
 
-  function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleString("de-DE", {
+  // created_at ist BIGINT (ms-Timestamp) aus der DB
+  function formatDate(ts: number | string) {
+    return new Date(Number(ts)).toLocaleString("de-DE", {
       day: "2-digit", month: "2-digit", year: "numeric",
       hour: "2-digit", minute: "2-digit",
     });
@@ -58,12 +73,12 @@ export default function ModPanel({ unbanRequests }: Props) {
           <p className="mt-1 text-2xl font-bold text-yellow-400">{pending}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm text-neutral-500">Angenommen</p>
-          <p className="mt-1 text-2xl font-bold text-green-400">{approved}</p>
+          <p className="text-sm text-neutral-500">Erledigt</p>
+          <p className="mt-1 text-2xl font-bold text-green-400">{done}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-sm text-neutral-500">Abgelehnt</p>
-          <p className="mt-1 text-2xl font-bold text-red-400">{denied}</p>
+          <p className="text-sm text-neutral-500">Fehlgeschlagen</p>
+          <p className="mt-1 text-2xl font-bold text-red-400">{failed}</p>
         </div>
       </div>
 
@@ -83,17 +98,22 @@ export default function ModPanel({ unbanRequests }: Props) {
         <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Entbannungs-Anträge</h2>
           <div className="flex gap-2 flex-wrap">
-            {(["ALL", "PENDING", "APPROVED", "DENIED"] as const).map((s) => (
+            {([
+              { key: "ALL",     label: "Alle" },
+              { key: "PENDING", label: "Ausstehend" },
+              { key: "DONE",    label: "Erledigt" },
+              { key: "FAILED",  label: "Fehlgeschlagen" },
+            ] as const).map(({ key, label }) => (
               <button
-                key={s}
-                onClick={() => setFilter(s)}
+                key={key}
+                onClick={() => setFilter(key)}
                 className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                  filter === s
+                  filter === key
                     ? "bg-sky-500/20 text-sky-300"
                     : "text-neutral-500 hover:bg-white/5 hover:text-neutral-300"
                 }`}
               >
-                {s === "ALL" ? "Alle" : s === "PENDING" ? "Ausstehend" : s === "APPROVED" ? "Angenommen" : "Abgelehnt"}
+                {label}
               </button>
             ))}
           </div>
@@ -149,7 +169,7 @@ export default function ModPanel({ unbanRequests }: Props) {
                         }`}
                       >
                         {STATUS_ICONS[r.status]}
-                        {r.status === "PENDING" ? "Ausstehend" : r.status === "APPROVED" ? "Angenommen" : r.status === "DENIED" ? "Abgelehnt" : r.status}
+                        {STATUS_LABEL[r.status] ?? r.status}
                       </span>
                     </div>
                   </div>

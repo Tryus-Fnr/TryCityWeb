@@ -795,8 +795,8 @@ export type UnbanRequestRow = {
   reason: string;
   createdBy: string | null;
   status: string;
-  createdAt: string;
-  processedAt: string | null;
+  createdAt: number;
+  processedAt: number | null;
   resultMessage: string | null;
 };
 
@@ -809,14 +809,14 @@ export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
     reason: string;
     created_by: string | null;
     status: string;
-    created_at: string;
-    processed_at: string | null;
+    created_at: string | number;
+    processed_at: string | number | null;
     result_message: string | null;
   }>(
     `SELECT id, action_type, target_uuid, target_name, reason, created_by,
             status, created_at, processed_at, result_message
      FROM tryus_bot_actions
-     WHERE action_type IN ('UNBAN_REQUEST', 'UNMUTE_REQUEST')
+     WHERE action_type IN ('MC_UNBAN', 'UNBAN_REQUEST', 'UNMUTE_REQUEST')
      ORDER BY created_at DESC
      LIMIT 200`
   );
@@ -828,8 +828,8 @@ export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
     reason: r.reason,
     createdBy: r.created_by,
     status: r.status,
-    createdAt: r.created_at,
-    processedAt: r.processed_at,
+    createdAt: Number(r.created_at),
+    processedAt: r.processed_at !== null ? Number(r.processed_at) : null,
     resultMessage: r.result_message,
   }));
 }
