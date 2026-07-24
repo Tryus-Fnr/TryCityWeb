@@ -60,9 +60,10 @@ function formatDate(ms: number) {
   });
 }
 
-function formatOnlineTime(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+function formatOnlineTime(ms: number) {
+  const s = Math.floor(ms / 1000); // onlineTime ist in Millisekunden gespeichert
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
   return `${h}h ${m}m`;
 }
