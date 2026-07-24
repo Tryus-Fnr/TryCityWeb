@@ -792,7 +792,10 @@ export type UnbanRequestRow = {
   actionType: string;
   targetUuid: string;
   targetName: string;
+  /** Discord-Ticket-Titel / Betreff des Antrags (vom Bot befüllt). */
   reason: string;
+  /** Was der Spieler selbst als Entschuldigung / Begründung geschrieben hat. */
+  playerMessage: string | null;
   createdBy: string | null;
   status: string;
   createdAt: number;
@@ -807,13 +810,14 @@ export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
     target_uuid: string;
     target_name: string;
     reason: string;
+    player_message: string | null;
     created_by: string | null;
     status: string;
     created_at: string | number;
     processed_at: string | number | null;
     result_message: string | null;
   }>(
-    `SELECT id, action_type, target_uuid, target_name, reason, created_by,
+    `SELECT id, action_type, target_uuid, target_name, reason, player_message, created_by,
             status, created_at, processed_at, result_message
      FROM tryus_bot_actions
      WHERE action_type IN ('MC_UNBAN', 'UNBAN_REQUEST', 'UNMUTE_REQUEST')
@@ -826,6 +830,7 @@ export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
     targetUuid: r.target_uuid,
     targetName: r.target_name,
     reason: r.reason,
+    playerMessage: r.player_message ?? null,
     createdBy: r.created_by,
     status: r.status,
     createdAt: Number(r.created_at),

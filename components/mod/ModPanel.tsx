@@ -173,16 +173,34 @@ export default function ModPanel({ unbanRequests }: Props) {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-3 rounded-lg bg-black/30 px-3 py-2">
-                    <p className="text-xs font-medium text-neutral-500">Begründung</p>
-                    <p className="mt-0.5 text-sm text-neutral-300">{r.reason || "–"}</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {/* Nachricht des Spielers (Entschuldigung) */}
+                    {r.playerMessage ? (
+                      <div className="rounded-lg bg-black/30 px-3 py-2">
+                        <p className="text-xs font-medium text-neutral-500">✍️ Entschuldigung des Spielers</p>
+                        <p className="mt-0.5 whitespace-pre-wrap text-sm text-neutral-200">{r.playerMessage}</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg bg-black/20 px-3 py-2">
+                        <p className="text-xs font-medium text-neutral-600">✍️ Entschuldigung des Spielers</p>
+                        <p className="mt-0.5 text-sm italic text-neutral-600">Nicht angegeben</p>
+                      </div>
+                    )}
+                    {/* Ticket-Betreff / Antrag-Bezeichnung vom Bot */}
+                    {r.reason && (
+                      <div className="rounded-lg bg-black/20 px-3 py-2">
+                        <p className="text-xs font-medium text-neutral-500">📋 Antrag</p>
+                        <p className="mt-0.5 text-sm text-neutral-400">{r.reason}</p>
+                      </div>
+                    )}
+                    {/* Ergebnis nach Bearbeitung */}
+                    {r.resultMessage && (
+                      <div className="rounded-lg bg-black/20 px-3 py-2">
+                        <p className="text-xs font-medium text-neutral-500">✅ Ergebnis</p>
+                        <p className="mt-0.5 text-sm text-neutral-300">{r.resultMessage}</p>
+                      </div>
+                    )}
                   </div>
-                  {r.resultMessage && (
-                    <div className="mt-2 rounded-lg bg-black/20 px-3 py-2">
-                      <p className="text-xs font-medium text-neutral-500">Ergebnis</p>
-                      <p className="mt-0.5 text-sm text-neutral-300">{r.resultMessage}</p>
-                    </div>
-                  )}
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
                     <span>Erstellt: {formatDate(r.createdAt)}</span>
                     {r.processedAt && <span>Bearbeitet: {formatDate(r.processedAt)}</span>}
