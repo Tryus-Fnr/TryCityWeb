@@ -1,6 +1,7 @@
 import { query } from "@/lib/db";
 import type {
   ClusterMetricPoint,
+  InfraEvent,
   InfraNode,
   InfraService,
   MetricRange,
@@ -8,7 +9,7 @@ import type {
   ServiceMetricPoint,
 } from "@/lib/infraTypes";
 
-export { METRIC_RANGES, parseRange } from "@/lib/infraTypes";
+export { EVENT_STYLE, METRIC_RANGES, eventStyle, parseRange } from "@/lib/infraTypes";
 
 /**
  * Abfragen für die Infrastruktur-Ansicht (CloudNet-Nodes & -Services).
@@ -21,6 +22,7 @@ export { METRIC_RANGES, parseRange } from "@/lib/infraTypes";
 
 export type {
   ClusterMetricPoint,
+  InfraEvent,
   InfraNode,
   InfraService,
   MetricRange,
@@ -61,6 +63,8 @@ export async function loadInfraNodes(): Promise<InfraNode[]> {
     `SELECT n.node_id, n.online, n.draining, n.cpu_system, n.mem_max_mb, n.mem_used_mb,
             n.mem_reserved_mb, n.services_count, n.players, n.host, n.cloudnet_version, n.updated_at,
             h.os_name, h.cpu_cores, h.load_average, h.ram_total, h.ram_free,
+            h.ram_used, h.ram_available, h.ram_buffers, h.ram_cached, h.ram_shared,
+            h.swap_total, h.swap_free,
             h.disk_total, h.disk_free, h.updated_at AS host_updated_at
      FROM infra_node_live n
      LEFT JOIN infra_host_live h ON h.node_id = n.node_id
@@ -84,6 +88,17 @@ export async function loadInfraNodes(): Promise<InfraNode[]> {
     loadAverage: Number(r.load_average ?? -1),
     ramTotal: Number(r.ram_total ?? 0),
     ramFree: Number(r.ram_free ?? 0),
+    // Reports aelterer Plugin-Versionen haben ram_used noch nicht - dann bleibt
+    // nur die grobe Rechnung, die Cache faelschlich mitzaehlt.
+    ramUsed: Number(r.ram_used ?? 0) > 0
+      ? Number(r.ram_used)
+      : Math.max(0, Number(r.ram_total ?? 0) - Number(r.ram_free ?? 0)),
+    ramAvailable: Number(r.ram_available ?? 0),
+    ramBuffers: Number(r.ram_buffers ?? 0),
+    ramCached: Number(r.ram_cached ?? 0),
+    ramShared: Number(r.ram_shared ?? 0),
+    swapTotal: Number(r.swap_total ?? 0),
+    swapFree: Number(r.swap_free ?? 0),
     diskTotal: Number(r.disk_total ?? 0),
     diskFree: Number(r.disk_free ?? 0),
     hostUpdatedAt: Number(r.host_updated_at ?? 0),
@@ -218,6 +233,59 @@ export async function loadClusterMetrics(range: MetricRange): Promise<ClusterMet
     players: Number(r.players ?? 0),
     nodes: Number(r.nodes ?? 0),
   }));
+}
+
+/**
+ * Start-/Stopp-Marker für den gewählten Zeitraum.
+ *
+ * <p>Ohne Filter kommen alle Ereignisse des Clusters. {@code service} liefert nur
+ * die eines Servers, {@code node} alle einer VPS <em>inklusive</em> der Services,
+ * die darauf laufen – denn genau die erklären deren CPU-Ausschläge.</p>
+ *
+ * Das Limit verhindert, dass ein langer Zeitraum die Diagramme mit hunderten
+ * Linien zupflastert; es greift von hinten, die neuesten Ereignisse gewinnen.
+ */
+export async function loadInfraEvents(
+  range: MetricRange,
+  filter: { service?: string; node?: string } = {},
+  limit = 300
+): Promise<InfraEvent[]> {
+  const { sinceMs } = rangeToBucket(range);
+  const since = sinceMs === 0 ? 0 : Date.now() - sinceMs;
+
+  const conditions = ["ts >= ?"];
+  const params: (string | number)[] = [since];
+
+  if (filter.service) {
+    conditions.push("target = ? AND kind = 'SERVICE'");
+    params.push(filter.service);
+  } else if (filter.node) {
+    conditions.push("node_id = ?");
+    params.push(filter.node);
+  }
+
+  const safeLimit = Math.max(1, Math.min(2000, Math.floor(limit)));
+
+  const rows = await query<Row>(
+    `SELECT id, ts, kind, type, target, node_id, detail
+     FROM infra_events
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY ts DESC
+     LIMIT ${safeLimit}`,
+    params
+  );
+
+  return rows
+    .map((r) => ({
+      id: Number(r.id),
+      t: Number(r.ts),
+      kind: String(r.kind ?? ""),
+      type: String(r.type ?? "") as InfraEvent["type"],
+      target: String(r.target ?? ""),
+      nodeId: String(r.node_id ?? ""),
+      detail: String(r.detail ?? ""),
+    }))
+    .sort((a, b) => a.t - b.t);
 }
 
 export async function loadServiceMetrics(

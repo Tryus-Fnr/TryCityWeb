@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminStatus } from "@/lib/auth";
-import { loadInfraService, loadServiceMetrics, parseRange } from "@/lib/infra";
+import {
+  loadInfraEvents,
+  loadInfraService,
+  loadServiceMetrics,
+  parseRange,
+} from "@/lib/infra";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +23,10 @@ export async function GET(
   const range = parseRange(request.nextUrl.searchParams.get("range"));
 
   try {
-    const [service, metrics] = await Promise.all([
+    const [service, metrics, events] = await Promise.all([
       loadInfraService(serviceName),
       loadServiceMetrics(serviceName, range),
+      loadInfraEvents(range, { service: serviceName }),
     ]);
 
     // Ein gestoppter Service hat keine Live-Zeile mehr, aber weiterhin Verlauf –
@@ -28,7 +34,7 @@ export async function GET(
     if (!service && metrics.length === 0) {
       return NextResponse.json({ ok: false, error: "Service unbekannt" }, { status: 404 });
     }
-    return NextResponse.json({ ok: true, service, metrics, range, at: Date.now() });
+    return NextResponse.json({ ok: true, service, metrics, events, range, at: Date.now() });
   } catch (e) {
     console.error("[API/infra/service]", e);
     return NextResponse.json({ ok: false, error: "DB-Fehler" }, { status: 500 });

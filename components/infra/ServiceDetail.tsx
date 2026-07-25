@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import type { InfraService, MetricRange, ServiceMetricPoint } from "@/lib/infraTypes";
+import type { InfraEvent, InfraService, MetricRange, ServiceMetricPoint } from "@/lib/infraTypes";
+import EventTimeline from "./EventTimeline";
 import MetricChart from "./MetricChart";
 import RangePicker from "./RangePicker";
 import UsageBar from "./UsageBar";
@@ -12,6 +13,7 @@ type DetailResponse = {
   ok: boolean;
   service: InfraService | null;
   metrics: ServiceMetricPoint[];
+  events: InfraEvent[];
   range: MetricRange;
   at: number;
   error?: string;
@@ -242,6 +244,7 @@ export default function ServiceDetail({ serviceName }: { serviceName: string }) 
             range={range}
             percent
             formatValue={(v) => `${Math.round(v * 100)} %`}
+            events={data.events}
             series={[{ key: "cpu", label: "CPU", color: "#38bdf8" }]}
           />
         </div>
@@ -253,6 +256,7 @@ export default function ServiceDetail({ serviceName }: { serviceName: string }) 
             range={range}
             height={180}
             formatValue={formatBytes}
+            events={data.events}
             series={[{ key: "heap", label: "Heap", color: "#34d399" }]}
           />
         </div>
@@ -268,8 +272,11 @@ export default function ServiceDetail({ serviceName }: { serviceName: string }) 
               { key: "players", label: "Spieler", color: "#f472b6" },
               { key: "threads", label: "Threads", color: "#a78bfa" },
             ]}
+            events={data.events}
           />
         </div>
+
+        <EventTimeline events={data.events} showTarget={false} />
       </div>
 
       {/* Vergleich */}

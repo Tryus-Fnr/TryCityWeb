@@ -7,11 +7,14 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import type { InfraEvent } from "@/lib/infraTypes";
+import { eventStyle } from "@/lib/infraTypes";
 import { makeTimeFormatter } from "./utils";
 
 export type Series = {
@@ -32,7 +35,17 @@ type Props = {
   height?: number;
   /** Mehrere Serien werden als Linien gezeichnet, eine einzelne als Fläche. */
   mode?: "area" | "line";
+  /** Start-/Stopp-Ereignisse, die als senkrechte Marker eingezeichnet werden. */
+  events?: InfraEvent[];
 };
+
+/**
+ * Ab wie vielen Markern nicht mehr gezeichnet wird.
+ *
+ * Bei einem langen Zeitraum wären es sonst hunderte Linien, die das Diagramm
+ * unlesbar machen – dann ist die Ereignisliste unter dem Chart der bessere Weg.
+ */
+export const MAX_MARKERS = 60;
 
 /**
  * Zeitreihen-Diagramm für Infrastruktur-Werte.
@@ -49,9 +62,17 @@ export default function MetricChart({
   percent = false,
   height = 240,
   mode,
+  events = [],
 }: Props) {
   const fmtTime = makeTimeFormatter(range);
   const chartMode = mode ?? (series.length > 1 ? "line" : "area");
+
+  // Nur Marker zeichnen, die im dargestellten Zeitfenster liegen – sonst würde
+  // recharts die X-Achse aufziehen und die Kurven zusammenstauchen.
+  const first = data.length > 0 ? Number(data[0].t) : 0;
+  const last = data.length > 0 ? Number(data[data.length - 1].t) : 0;
+  const visibleEvents = events.filter((e) => e.t >= first && e.t <= last);
+  const markers = visibleEvents.length <= MAX_MARKERS ? visibleEvents : [];
 
   if (data.length === 0) {
     return (
@@ -92,6 +113,10 @@ export default function MetricChart({
       <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
       <XAxis
         dataKey="t"
+        // Numerische Zeitachse statt Kategorien: nur so lassen sich Marker an
+        // beliebigen Zeitpunkten setzen und nicht bloß auf Messpunkten.
+        type="number"
+        domain={["dataMin", "dataMax"]}
         tickFormatter={fmtTime}
         stroke="#525252"
         tick={{ fill: "#737373", fontSize: 12 }}
@@ -107,6 +132,25 @@ export default function MetricChart({
     </>
   );
 
+  /**
+   * Senkrechte Linien für Start-/Stopp-Ereignisse. Bewusst gestrichelt und
+   * dünn, damit sie die Messkurven nicht überdecken.
+   */
+  const referenceLines = markers.map((event) => {
+    const style = eventStyle(event.type);
+    return (
+      <ReferenceLine
+        key={event.id}
+        x={event.t}
+        stroke={style.color}
+        strokeDasharray="3 3"
+        strokeOpacity={0.75}
+        strokeWidth={1}
+        ifOverflow="hidden"
+      />
+    );
+  });
+
   return (
     <ResponsiveContainer width="100%" height={height}>
       {chartMode === "area" ? (
@@ -120,6 +164,7 @@ export default function MetricChart({
             ))}
           </defs>
           {axes}
+          {referenceLines}
           {tooltip}
           {series.map((s) => (
             <Area
@@ -137,6 +182,7 @@ export default function MetricChart({
       ) : (
         <LineChart data={data} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
           {axes}
+          {referenceLines}
           {tooltip}
           <Legend
             wrapperStyle={{ fontSize: 12, color: "#a3a3a3" }}

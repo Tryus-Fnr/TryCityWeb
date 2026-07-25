@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ClusterMetricPoint, InfraNode, MetricRange } from "@/lib/infraTypes";
+import type { ClusterMetricPoint, InfraEvent, InfraNode, MetricRange } from "@/lib/infraTypes";
+import EventTimeline from "./EventTimeline";
+import MemoryBar from "./MemoryBar";
 import MetricChart from "./MetricChart";
 import RangePicker from "./RangePicker";
 import UsageBar from "./UsageBar";
@@ -10,6 +12,7 @@ import { formatBytes, formatPercent, usageTextColor } from "./utils";
 type ApiResponse = {
   ok: boolean;
   metrics: ClusterMetricPoint[];
+  events: InfraEvent[];
   range: MetricRange;
   error?: string;
 };
@@ -61,8 +64,13 @@ export default function ClusterOverview({ nodes }: { nodes: InfraNode[] }) {
   const withOsData = active.filter((n) => n.ramTotal > 0);
 
   const ramTotal = withOsData.reduce((sum, n) => sum + n.ramTotal, 0);
-  const ramFree = withOsData.reduce((sum, n) => sum + n.ramFree, 0);
-  const ramUsed = ramTotal - ramFree;
+  // Echter Verbrauch, nicht "total minus frei" - Cache und Puffer sind kein
+  // belegter Speicher, sie werden bei Bedarf sofort wieder freigegeben.
+  const ramUsed = withOsData.reduce((sum, n) => sum + n.ramUsed, 0);
+  const ramBuffers = withOsData.reduce((sum, n) => sum + n.ramBuffers, 0);
+  const ramCached = withOsData.reduce((sum, n) => sum + n.ramCached, 0);
+  const ramShared = withOsData.reduce((sum, n) => sum + n.ramShared, 0);
+  const ramFree = Math.max(0, ramTotal - ramUsed);
 
   const diskTotal = withOsData.reduce((sum, n) => sum + n.diskTotal, 0);
   const diskFree = withOsData.reduce((sum, n) => sum + n.diskFree, 0);
@@ -122,11 +130,19 @@ export default function ClusterOverview({ nodes }: { nodes: InfraNode[] }) {
           headlineColor={usageTextColor(ramRatio)}
           subline={
             ramTotal > 0
-              ? `${formatBytes(ramFree)} frei von ${formatBytes(ramTotal)}`
+              ? `${formatBytes(ramFree)} noch vergebbar von ${formatBytes(ramTotal)}`
               : "keine Betriebssystem-Werte"
           }
         >
-          <UsageBar label="belegt" ratio={ramRatio} />
+          <MemoryBar
+            parts={{
+              total: ramTotal,
+              used: ramUsed,
+              buffers: ramBuffers,
+              cached: ramCached,
+              shared: ramShared,
+            }}
+          />
         </SummaryCard>
 
         <SummaryCard
@@ -160,6 +176,7 @@ export default function ClusterOverview({ nodes }: { nodes: InfraNode[] }) {
               percent
               mode="line"
               formatValue={(v) => `${Math.round(v * 100)} %`}
+              events={history?.events ?? []}
               series={[
                 { key: "cpuAvg", label: "CPU Ø", color: "#38bdf8" },
                 { key: "cpuMax", label: "CPU höchster Node", color: "#fb7185" },
@@ -176,6 +193,7 @@ export default function ClusterOverview({ nodes }: { nodes: InfraNode[] }) {
               range={range}
               height={180}
               mode="line"
+              events={history?.events ?? []}
               series={[
                 { key: "nodes", label: "Nodes", color: "#a78bfa" },
                 { key: "services", label: "Services", color: "#60a5fa" },
@@ -183,6 +201,8 @@ export default function ClusterOverview({ nodes }: { nodes: InfraNode[] }) {
               ]}
             />
           </div>
+
+          <EventTimeline events={history?.events ?? []} />
         </div>
       )}
     </div>

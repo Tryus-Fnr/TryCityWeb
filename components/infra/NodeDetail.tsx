@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { InfraNode, InfraService, MetricRange, NodeMetricPoint } from "@/lib/infraTypes";
+import type {
+  InfraEvent,
+  InfraNode,
+  InfraService,
+  MetricRange,
+  NodeMetricPoint,
+} from "@/lib/infraTypes";
+import EventTimeline from "./EventTimeline";
+import MemoryBar from "./MemoryBar";
 import MetricChart from "./MetricChart";
 import RangePicker from "./RangePicker";
 import ServiceTable from "./ServiceTable";
@@ -14,6 +22,7 @@ type ApiResponse = {
   node: InfraNode;
   services: InfraService[];
   metrics: NodeMetricPoint[];
+  events: InfraEvent[];
   range: MetricRange;
   at: number;
   error?: string;
@@ -71,7 +80,7 @@ export default function NodeDetail({ nodeId }: { nodeId: string }) {
   }
 
   const node = data.node;
-  const ramRatio = node.ramTotal > 0 ? (node.ramTotal - node.ramFree) / node.ramTotal : -1;
+  const ramRatio = node.ramTotal > 0 ? node.ramUsed / node.ramTotal : -1;
   const diskRatio = node.diskTotal > 0 ? (node.diskTotal - node.diskFree) / node.diskTotal : -1;
   const budgetRatio = node.memMaxMb > 0 ? node.memReservedMb / node.memMaxMb : -1;
 
@@ -124,10 +133,7 @@ export default function NodeDetail({ nodeId }: { nodeId: string }) {
           />
         </Panel>
         <Panel title="Arbeitsspeicher" value={formatPercent(ramRatio)}>
-          <UsageBar
-            label={`${formatBytes(node.ramTotal - node.ramFree)} / ${formatBytes(node.ramTotal)}`}
-            ratio={ramRatio}
-          />
+          <MemoryBar node={node} />
         </Panel>
         <Panel title="Speicherplatz" value={formatPercent(diskRatio)}>
           <UsageBar
@@ -139,6 +145,23 @@ export default function NodeDetail({ nodeId }: { nodeId: string }) {
           <UsageBar label={`von ${node.memMaxMb} MB reserviert`} ratio={budgetRatio} />
         </Panel>
       </div>
+
+      {/* Speicher im Detail */}
+      {node.ramTotal > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <h2 className="mb-3 font-semibold">Speicher im Detail</h2>
+          <MemoryBar node={node} detailed />
+          {node.swapTotal > 0 && (
+            <div className="mt-4">
+              <UsageBar
+                label="Swap"
+                ratio={(node.swapTotal - node.swapFree) / node.swapTotal}
+                detail={`${formatBytes(node.swapTotal - node.swapFree)} / ${formatBytes(node.swapTotal)}`}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Verlauf */}
       <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -154,6 +177,7 @@ export default function NodeDetail({ nodeId }: { nodeId: string }) {
             range={range}
             percent
             formatValue={(v) => `${Math.round(v * 100)} %`}
+            events={data.events}
             series={[
               { key: "cpu", label: "CPU", color: "#38bdf8" },
               { key: "ram", label: "RAM", color: "#34d399" },
@@ -169,12 +193,15 @@ export default function NodeDetail({ nodeId }: { nodeId: string }) {
             range={range}
             height={180}
             mode="line"
+            events={data.events}
             series={[
               { key: "services", label: "Services", color: "#a78bfa" },
               { key: "players", label: "Spieler", color: "#f472b6" },
             ]}
           />
         </div>
+
+        <EventTimeline events={data.events} />
       </div>
 
       {/* Services dieser VPS */}

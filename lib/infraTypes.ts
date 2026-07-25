@@ -28,10 +28,33 @@ export type InfraNode = {
   loadAverage: number;
   ramTotal: number;
   ramFree: number;
+  /**
+   * Wirklich von Programmen belegt – <b>ohne</b> Cache, Puffer und Shared.
+   *
+   * Nicht mit "total − free" verwechseln: Linux füllt jeden ungenutzten Block
+   * mit Datei-Cache und gibt ihn beim ersten Bedarf sofort wieder her. Die
+   * Differenz sieht wie Auslastung aus, ist aber keine.
+   */
+  ramUsed: number;
+  /** Was ohne Swappen noch vergeben werden kann (Cache zählt mit). */
+  ramAvailable: number;
+  ramBuffers: number;
+  ramCached: number;
+  ramShared: number;
+  swapTotal: number;
+  swapFree: number;
   diskTotal: number;
   diskFree: number;
   hostUpdatedAt: number;
 };
+
+/** Aufteilung des Arbeitsspeichers – dieselben Kategorien wie im htop-Balken. */
+export const MEMORY_SEGMENTS = [
+  { key: "used", label: "Belegt", color: "#34d399", hint: "von Programmen genutzt" },
+  { key: "buffers", label: "Puffer", color: "#60a5fa", hint: "Kernel-Puffer, wird bei Bedarf frei" },
+  { key: "shared", label: "Shared", color: "#c084fc", hint: "z.B. tmpfs und /dev/shm" },
+  { key: "cached", label: "Cache", color: "#fbbf24", hint: "Datei-Cache, wird bei Bedarf sofort frei" },
+] as const;
 
 /** Ein CloudNet-Service – Minecraft-Server oder Proxy. */
 export type InfraService = {
@@ -99,6 +122,45 @@ export type ServiceMetricPoint = {
   threads: number;
   players: number;
 };
+
+/**
+ * Ein Start-/Stopp-Ereignis, das als Marker in den Diagrammen erscheint.
+ *
+ * Die Zeitpunkte kommen vom Proxy: Service-Start und -Stopp aus CloudNet-Events
+ * (sekundengenau), "betretbar" und Node-Ausfälle aus dem Vergleich zweier
+ * Messrunden (auf 30 s genau).
+ */
+export type InfraEvent = {
+  id: number;
+  t: number;
+  /** "SERVICE" oder "NODE". */
+  kind: string;
+  type: InfraEventType;
+  /** Service- bzw. Node-Name. */
+  target: string;
+  nodeId: string;
+  detail: string;
+};
+
+export type InfraEventType =
+  | "SERVICE_STARTED"
+  | "SERVICE_ONLINE"
+  | "SERVICE_STOPPED"
+  | "NODE_ONLINE"
+  | "NODE_OFFLINE";
+
+/** Farbe und Beschriftung je Ereignistyp – überall gleich, damit man sie wiedererkennt. */
+export const EVENT_STYLE: Record<InfraEventType, { label: string; color: string }> = {
+  SERVICE_STARTED: { label: "Start", color: "#38bdf8" },
+  SERVICE_ONLINE: { label: "Betretbar", color: "#34d399" },
+  SERVICE_STOPPED: { label: "Stopp", color: "#fb7185" },
+  NODE_ONLINE: { label: "Node online", color: "#a78bfa" },
+  NODE_OFFLINE: { label: "Node offline", color: "#f43f5e" },
+};
+
+export function eventStyle(type: string): { label: string; color: string } {
+  return EVENT_STYLE[type as InfraEventType] ?? { label: type, color: "#a3a3a3" };
+}
 
 export type MetricRange = "1h" | "6h" | "24h" | "7d" | "30d" | "all";
 

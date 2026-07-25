@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { InfraNode, InfraService } from "@/lib/infraTypes";
 import ClusterOverview from "./ClusterOverview";
+import MemoryBar from "./MemoryBar";
 import ServiceTable from "./ServiceTable";
 import UsageBar from "./UsageBar";
 import { formatAge, formatBytes } from "./utils";
@@ -136,7 +137,6 @@ export default function InfraDashboard() {
 
 /** Kachel einer VPS – führt per Klick auf die Detailseite. */
 function NodeCard({ node, services }: { node: InfraNode; services: InfraService[] }) {
-  const ramRatio = node.ramTotal > 0 ? (node.ramTotal - node.ramFree) / node.ramTotal : -1;
   const diskRatio = node.diskTotal > 0 ? (node.diskTotal - node.diskFree) / node.diskTotal : -1;
   const budgetRatio = node.memMaxMb > 0 ? node.memReservedMb / node.memMaxMb : -1;
   const hasOsData = node.ramTotal > 0;
@@ -171,11 +171,7 @@ function NodeCard({ node, services }: { node: InfraNode; services: InfraService[
         <UsageBar label="CPU (System)" ratio={node.cpuSystem} />
         {hasOsData ? (
           <>
-            <UsageBar
-              label="RAM"
-              ratio={ramRatio}
-              detail={`${formatBytes(node.ramTotal - node.ramFree)} / ${formatBytes(node.ramTotal)}`}
-            />
+            <MemoryBar node={node} />
             <UsageBar
               label="Speicherplatz"
               ratio={diskRatio}
