@@ -1,5 +1,6 @@
 import { query } from "@/lib/db";
 import type {
+  ClusterMetricPoint,
   InfraNode,
   InfraService,
   MetricRange,
@@ -19,6 +20,7 @@ export { METRIC_RANGES, parseRange } from "@/lib/infraTypes";
  */
 
 export type {
+  ClusterMetricPoint,
   InfraNode,
   InfraService,
   MetricRange,
@@ -170,6 +172,51 @@ export async function loadNodeMetrics(
     diskTotal: Number(r.disk_total ?? 0),
     services: Number(r.services_count ?? 0),
     players: Number(r.players ?? 0),
+  }));
+}
+
+/**
+ * Verlauf des gesamten Clusters – alle Nodes je Zeitstempel zusammengefasst.
+ *
+ * Die Erfassung rundet alle Zeitstempel auf ein Vielfaches der Auflösung, deshalb
+ * lässt sich hier sauber nach {@code ts} gruppieren: alle Nodes einer Messrunde
+ * haben denselben Wert.
+ *
+ * {@code NULLIF(cpu_system, -1)} filtert unbekannte CPU-Werte heraus, damit ein
+ * einzelner Node ohne Messwert den Durchschnitt nicht nach unten zieht.
+ */
+export async function loadClusterMetrics(range: MetricRange): Promise<ClusterMetricPoint[]> {
+  const { bucket, sinceMs } = rangeToBucket(range);
+  const since = sinceMs === 0 ? 0 : Date.now() - sinceMs;
+
+  const rows = await query<Row>(
+    `SELECT ts,
+            AVG(NULLIF(cpu_system, -1)) AS cpu_avg,
+            MAX(NULLIF(cpu_system, -1)) AS cpu_max,
+            SUM(ram_used)   AS ram_used,
+            SUM(ram_total)  AS ram_total,
+            SUM(disk_used)  AS disk_used,
+            SUM(disk_total) AS disk_total,
+            SUM(services_count) AS services,
+            SUM(players) AS players,
+            COUNT(*) AS nodes
+     FROM infra_node_metrics
+     WHERE bucket_seconds = ? AND ts >= ?
+     GROUP BY ts
+     ORDER BY ts ASC`,
+    [bucket, since]
+  );
+  return rows.map((r) => ({
+    t: Number(r.ts),
+    cpuAvg: r.cpu_avg === null ? -1 : Number(r.cpu_avg),
+    cpuMax: r.cpu_max === null ? -1 : Number(r.cpu_max),
+    ramUsed: Number(r.ram_used ?? 0),
+    ramTotal: Number(r.ram_total ?? 0),
+    diskUsed: Number(r.disk_used ?? 0),
+    diskTotal: Number(r.disk_total ?? 0),
+    services: Number(r.services ?? 0),
+    players: Number(r.players ?? 0),
+    nodes: Number(r.nodes ?? 0),
   }));
 }
 

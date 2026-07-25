@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { InfraNode, InfraService } from "@/lib/infraTypes";
+import ClusterOverview from "./ClusterOverview";
 import ServiceTable from "./ServiceTable";
 import UsageBar from "./UsageBar";
 import { formatAge, formatBytes } from "./utils";
@@ -85,6 +86,9 @@ export default function InfraDashboard() {
           muted={stale}
         />
       </div>
+
+      {/* Gesamtauslastung über alle Nodes */}
+      <ClusterOverview nodes={data.nodes} />
 
       {/* Umschalter */}
       <div className="flex gap-2">

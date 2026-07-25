@@ -67,6 +67,30 @@ export type NodeMetricPoint = {
   players: number;
 };
 
+/**
+ * Ein Zeitpunkt über den GESAMTEN Cluster – alle Nodes zusammengefasst.
+ *
+ * RAM und Speicherplatz werden summiert (das ergibt die echte Gesamtkapazität),
+ * die CPU dagegen gemittelt: eine Summe von Prozentwerten wäre sinnlos. Zusätzlich
+ * steht der höchste Einzelwert daneben, damit ein einzelner heißlaufender Node
+ * nicht im Durchschnitt untergeht.
+ */
+export type ClusterMetricPoint = {
+  t: number;
+  /** Mittlere CPU-Last über alle Nodes, 0..1. */
+  cpuAvg: number;
+  /** Höchste CPU-Last eines einzelnen Nodes, 0..1. */
+  cpuMax: number;
+  ramUsed: number;
+  ramTotal: number;
+  diskUsed: number;
+  diskTotal: number;
+  services: number;
+  players: number;
+  /** Wie viele Nodes zu diesem Zeitpunkt gemeldet haben. */
+  nodes: number;
+};
+
 export type ServiceMetricPoint = {
   t: number;
   cpu: number;
