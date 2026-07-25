@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type RegionRow = {
@@ -42,7 +43,25 @@ export default function ServerMap() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [hovered, setHovered] = useState<RegionRow | null>(null);
   const [, setTick] = useState(0);
+  /** Servername → VPS/Node. Kommt aus der Infrastruktur-Erfassung des Proxys. */
+  const [nodeMap, setNodeMap] = useState<Record<string, string>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Die Region-Registry weiß nicht, auf welcher Maschine ein Server läuft –
+  // das steht nur in den CloudNet-Daten. Fehlt der Endpunkt, bleibt die
+  // Karte einfach ohne VPS-Angabe.
+  useEffect(() => {
+    fetch("/api/infra", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { ok?: boolean; services?: { serviceName: string; nodeId: string }[] }) => {
+        if (!data?.ok || !Array.isArray(data.services)) return;
+        const map: Record<string, string> = {};
+        for (const s of data.services) map[s.serviceName] = s.nodeId;
+        setNodeMap(map);
+      })
+      .catch(() => setNodeMap({}));
+  }, []);
 
   useEffect(() => {
     fetch("/api/servermap")
@@ -101,9 +120,14 @@ export default function ServerMap() {
   );
 
   // Drag
+  // Merkt sich, ob seit dem Mausklick wirklich gezogen wurde – sonst würde
+  // jedes Verschieben der Karte als Klick auf eine Region gelten.
+  const dragMoved = useRef(false);
+
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       setDragging(true);
+      dragMoved.current = false;
       setDragStart({ x: e.clientX, y: e.clientY });
       setPanStart({ x: pan.x, y: pan.y });
     },
@@ -113,6 +137,9 @@ export default function ServerMap() {
   const onMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!dragging) return;
+      if (Math.abs(e.clientX - dragStart.x) > 3 || Math.abs(e.clientY - dragStart.y) > 3) {
+        dragMoved.current = true;
+      }
       setPan({
         x: panStart.x + (e.clientX - dragStart.x),
         y: panStart.y + (e.clientY - dragStart.y),
@@ -305,13 +332,17 @@ export default function ServerMap() {
                   height: CELL_SIZE - 4,
                   margin: 2,
                 }}
-                className={`rounded-lg border transition-all select-none ${
+                className={`cursor-pointer rounded-lg border transition-all select-none ${
                   live
                     ? "border-emerald-500/60 bg-emerald-500/10 hover:border-emerald-400 hover:bg-emerald-500/20"
                     : "border-red-500/40 bg-red-500/5 hover:border-red-400/60 hover:bg-red-500/10"
                 }`}
                 onMouseEnter={() => setHovered(region)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => {
+                  if (dragMoved.current) return;
+                  router.push(`/infra/service/${encodeURIComponent(region.serverName)}`);
+                }}
               >
                 {/* Status-Punkt */}
                 <div
@@ -353,7 +384,7 @@ export default function ServerMap() {
         </div>
 
         {/* Tooltip */}
-        {hovered && <RegionTooltip region={hovered} />}
+        {hovered && <RegionTooltip region={hovered} node={nodeMap[hovered.serverName]} />}
 
         {/* Hinweis */}
         <div className="absolute bottom-3 left-3 text-xs text-neutral-600 select-none pointer-events-none">
@@ -372,6 +403,7 @@ export default function ServerMap() {
               <tr className="border-b border-white/10 text-neutral-500">
                 <th className="px-4 py-2 text-left">Status</th>
                 <th className="px-4 py-2 text-left">Server</th>
+                <th className="px-4 py-2 text-left">VPS</th>
                 <th className="px-4 py-2 text-left">Region (rx:rz)</th>
                 <th className="px-4 py-2 text-left">Block X</th>
                 <th className="px-4 py-2 text-left">Block Z</th>
@@ -404,7 +436,26 @@ export default function ServerMap() {
                           {live ? "Aktiv" : "Offline"}
                         </span>
                       </td>
-                      <td className="px-4 py-2 font-medium text-neutral-200">{r.serverName}</td>
+                      <td className="px-4 py-2 font-medium">
+                        <a
+                          href={`/infra/service/${encodeURIComponent(r.serverName)}`}
+                          className="text-sky-300 hover:underline"
+                        >
+                          {r.serverName}
+                        </a>
+                      </td>
+                      <td className="px-4 py-2">
+                        {nodeMap[r.serverName] ? (
+                          <a
+                            href={`/infra/node/${encodeURIComponent(nodeMap[r.serverName])}`}
+                            className="text-neutral-300 hover:text-sky-300 hover:underline"
+                          >
+                            {nodeMap[r.serverName]}
+                          </a>
+                        ) : (
+                          <span className="text-neutral-600">–</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 font-mono text-neutral-400">
                         {r.rx}:{r.rz}
                       </td>
@@ -437,7 +488,7 @@ export default function ServerMap() {
   );
 }
 
-function RegionTooltip({ region }: { region: RegionRow }) {
+function RegionTooltip({ region, node }: { region: RegionRow; node?: string }) {
   const live = isLive(region);
   const { x1, z1, x2, z2 } = formatCoords(region.rx, region.rz, region.regionSize);
   const hbAgo = region.lastHeartbeat > 0
@@ -460,6 +511,8 @@ function RegionTooltip({ region }: { region: RegionRow }) {
         </span>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        <span className="text-neutral-500">VPS</span>
+        <span className="font-mono text-neutral-300">{node ?? "–"}</span>
         <span className="text-neutral-500">Region</span>
         <span className="font-mono text-neutral-300">({region.rx}:{region.rz})</span>
         <span className="text-neutral-500">X-Bereich</span>

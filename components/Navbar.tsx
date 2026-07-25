@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server } from "lucide-react";
 
 type Props = {
   session: { name: string; isAdmin: boolean; isMod: boolean } | null;
@@ -18,6 +18,7 @@ const MARKT_TABS = [
 ];
 
 const ADMIN_TABS = [
+  { href: "/infra",     label: "Infrastruktur", desc: "VPS- & Server-Auslastung",   Icon: Server    },
   { href: "/stats",     label: "Server-Stats",  desc: "Spielerzahlen-Verlauf",      Icon: BarChart2 },
   { href: "/servermap", label: "Server-Karte",  desc: "Interaktive Regionskarte",   Icon: Map       },
   { href: "/players",   label: "SMP-Spieler",   desc: "Spielerprofile & Statistik", Icon: Users     },
