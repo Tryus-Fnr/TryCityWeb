@@ -254,8 +254,9 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
     setSaving(true);
     try {
       const res = await fetch(`/api/news/${post.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        setError("Löschen fehlgeschlagen.");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? "Löschen fehlgeschlagen.");
         return;
       }
       router.push("/admin/news");

@@ -6,6 +6,7 @@ import {
   loadAllNews,
 } from "@/lib/news";
 import { parseNewsInput } from "@/lib/newsInput";
+import { describeDbError } from "@/lib/dbError";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("[news/create]", e);
     return NextResponse.json(
-      { ok: false, error: "Beitrag konnte nicht gespeichert werden." },
+      { ok: false, error: `Beitrag konnte nicht gespeichert werden: ${describeDbError(e)}` },
       { status: 500 }
     );
   }

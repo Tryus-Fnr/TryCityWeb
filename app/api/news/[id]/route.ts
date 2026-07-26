@@ -7,6 +7,7 @@ import {
   updateNewsPost,
 } from "@/lib/news";
 import { parseNewsInput } from "@/lib/newsInput";
+import { describeDbError } from "@/lib/dbError";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, { params }: Params) {
   } catch (e) {
     console.error("[news/update]", e);
     return NextResponse.json(
-      { ok: false, error: "Beitrag konnte nicht gespeichert werden." },
+      { ok: false, error: `Beitrag konnte nicht gespeichert werden: ${describeDbError(e)}` },
       { status: 500 }
     );
   }
@@ -68,7 +69,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   } catch (e) {
     console.error("[news/delete]", e);
     return NextResponse.json(
-      { ok: false, error: "Beitrag konnte nicht gelöscht werden." },
+      { ok: false, error: `Beitrag konnte nicht gelöscht werden: ${describeDbError(e)}` },
       { status: 500 }
     );
   }
