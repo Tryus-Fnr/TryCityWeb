@@ -20,12 +20,31 @@ function isLive(row: RegionRow): boolean {
   return Date.now() - row.lastHeartbeat < HEARTBEAT_TIMEOUT_MS;
 }
 
+/**
+ * Grenzen einer Region in Weltkoordinaten.
+ *
+ * Regionen sind um ihren Mittelpunkt zentriert, nicht an der Ecke verankert –
+ * der Weltnullpunkt liegt also MITTEN in Region (0,0) und nicht dort, wo vier
+ * Regionen zusammenstoßen. Das entspricht RegionGrid.getRegionMinX/MaxX im
+ * Plugin: rx * size ± size/2.
+ *
+ * Bei regionSize 25000 geht Region (0,0) damit von -12500 bis 12500.
+ */
 function formatCoords(rx: number, rz: number, regionSize: number) {
-  const x1 = rx * regionSize;
-  const z1 = rz * regionSize;
-  const x2 = (rx + 1) * regionSize - 1;
-  const z2 = (rz + 1) * regionSize - 1;
+  const half = regionSize / 2;
+  const x1 = rx * regionSize - half;
+  const z1 = rz * regionSize - half;
+  const x2 = rx * regionSize + half;
+  const z2 = rz * regionSize + half;
   return { x1, z1, x2, z2 };
+}
+
+/** Kurzform großer Blockzahlen: 12500 → "12,5k" */
+function formatBlocks(value: number): string {
+  const abs = Math.abs(value);
+  if (abs < 1000) return String(value);
+  const k = value / 1000;
+  return `${k.toLocaleString("de-DE", { maximumFractionDigits: 1 })}k`;
 }
 
 const CELL_SIZE = 120; // px per cell at zoom=1
@@ -78,8 +97,8 @@ export default function ServerMap() {
             const centerRx = (minRx + maxRx) / 2;
             const centerRz = (minRz + maxRz) / 2;
             setPan({
-            x: -centerRz * CELL_SIZE + (typeof window !== "undefined" ? window.innerWidth / 2 : 400),
-            y: -centerRx * CELL_SIZE + 300,
+            x: -centerRx * CELL_SIZE + (typeof window !== "undefined" ? window.innerWidth / 2 : 400),
+            y: -centerRz * CELL_SIZE + 300,
             });
           }
         } else {
@@ -191,6 +210,16 @@ export default function ServerMap() {
 
   const liveCount = regions.filter(isLive).length;
 
+  // Ausdehnung der gesamten bespielbaren Welt: von der westlichsten bis zur
+  // oestlichsten Region, jeweils bis zur aeusseren Kante.
+  const regionSize = regions[0]?.regionSize ?? 0;
+  const worldMinX = Math.min(...regions.map((r) => r.rx)) * regionSize - regionSize / 2;
+  const worldMaxX = Math.max(...regions.map((r) => r.rx)) * regionSize + regionSize / 2;
+  const worldMinZ = Math.min(...regions.map((r) => r.rz)) * regionSize - regionSize / 2;
+  const worldMaxZ = Math.max(...regions.map((r) => r.rz)) * regionSize + regionSize / 2;
+  const worldWidth = worldMaxX - worldMinX;
+  const worldDepth = worldMaxZ - worldMinZ;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Legende + Infos */}
@@ -202,6 +231,20 @@ export default function ServerMap() {
         <div className="flex items-center gap-2 text-sm">
           <div className="h-3 w-3 rounded-full bg-red-500" />
           <span className="text-neutral-300">Offline ({regions.length - liveCount})</span>
+        </div>
+        <div className="text-sm text-neutral-500">
+          <span className="text-neutral-300">
+            {regionSize.toLocaleString("de-DE")}
+          </span>{" "}
+          Blöcke pro Region
+        </div>
+        <div className="text-sm text-neutral-500">
+          Welt{" "}
+          <span className="text-neutral-300">
+            {formatBlocks(worldWidth)} × {formatBlocks(worldDepth)}
+          </span>{" "}
+          Blöcke · X {formatBlocks(worldMinX)} … {formatBlocks(worldMaxX)} · Z{" "}
+          {formatBlocks(worldMinZ)} … {formatBlocks(worldMaxZ)}
         </div>
         <div className="ml-auto flex gap-2">
           <button
@@ -229,8 +272,8 @@ export default function ServerMap() {
                 const w = containerRef.current?.clientWidth ?? 800;
                 const h = containerRef.current?.clientHeight ?? 500;
                 setPan({
-                  x: w / 2 - centerRz * CELL_SIZE,
-                  y: h / 2 - centerRx * CELL_SIZE,
+                  x: w / 2 - centerRx * CELL_SIZE,
+                  y: h / 2 - centerRz * CELL_SIZE,
                 });
               }
             }}
@@ -263,7 +306,7 @@ export default function ServerMap() {
           className="absolute inset-0 pointer-events-none"
           style={{
             backgroundSize: `${CELL_SIZE * zoom}px ${CELL_SIZE * zoom}px`,
-            backgroundPosition: `${pan.x % (CELL_SIZE * zoom)}px ${pan.y % (CELL_SIZE * zoom)}px`,
+            backgroundPosition: `${(pan.x + (CELL_SIZE * zoom) / 2) % (CELL_SIZE * zoom)}px ${(pan.y + (CELL_SIZE * zoom) / 2) % (CELL_SIZE * zoom)}px`,
             backgroundImage:
               "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
           }}
@@ -304,6 +347,19 @@ export default function ServerMap() {
           >
             0
           </div>
+          {/* Achsenbeschriftung – ohne die weiß niemand, welche Richtung was ist */}
+          <div
+            className="absolute font-mono text-sky-500/70"
+            style={{ left: 10, top: -16, fontSize: 10 }}
+          >
+            +X →
+          </div>
+          <div
+            className="absolute font-mono text-sky-500/70"
+            style={{ left: 6, top: 12, fontSize: 10 }}
+          >
+            +Z ↓
+          </div>
         </div>
 
         {/* Region-Zellen */}
@@ -316,10 +372,13 @@ export default function ServerMap() {
         >
           {regions.map((region) => {
             const live = isLive(region);
-            const { x1, z1 } = formatCoords(region.rx, region.rz, region.regionSize);
-            // Karte: rx → vertikal (Y), rz → horizontal (X)
-            const cellX = region.rz * CELL_SIZE;
-            const cellY = region.rx * CELL_SIZE;
+            const { x1, z1, x2, z2 } = formatCoords(region.rx, region.rz, region.regionSize);
+            // Wie beim Blick auf eine Minecraft-Karte: X nach rechts, Z nach unten.
+            // Die Zelle wird um ihren Mittelpunkt gelegt, weil Regionen zentriert
+            // sind – so liegt der Nullpunkt in der Mitte von (0,0) und nicht
+            // dort, wo vier Regionen zusammenstoßen.
+            const cellX = region.rx * CELL_SIZE - CELL_SIZE / 2;
+            const cellY = region.rz * CELL_SIZE - CELL_SIZE / 2;
 
             return (
               <div
@@ -372,9 +431,9 @@ export default function ServerMap() {
                       className="text-neutral-600 font-mono leading-snug"
                       style={{ fontSize: Math.max(6, 8 * Math.min(zoom, 1)) }}
                     >
-                      X {x1.toLocaleString("de-DE")}
+                      X {formatBlocks(x1)} … {formatBlocks(x2)}
                       <br />
-                      Z {z1.toLocaleString("de-DE")}
+                      Z {formatBlocks(z1)} … {formatBlocks(z2)}
                     </div>
                   )}
                 </div>
@@ -389,6 +448,17 @@ export default function ServerMap() {
         {/* Hinweis */}
         <div className="absolute bottom-3 left-3 text-xs text-neutral-600 select-none pointer-events-none">
           Scrollrad zum Zoomen · Ziehen zum Verschieben
+        </div>
+
+        {/* Maßstab: eine Kachel entspricht genau einer Region */}
+        <div className="absolute bottom-3 right-3 select-none pointer-events-none text-right">
+          <div
+            className="ml-auto border-x border-b border-neutral-500"
+            style={{ width: CELL_SIZE * zoom, height: 6 }}
+          />
+          <div className="mt-1 font-mono text-xs text-neutral-500">
+            {formatBlocks(regionSize)} Blöcke
+          </div>
         </div>
       </div>
 
