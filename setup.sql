@@ -23,15 +23,55 @@ CREATE TABLE IF NOT EXISTS `smpg_web_login_codes` (
   INDEX `idx_exp` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Neuigkeiten (werden auch vom SMPGlobal-Plugin automatisch angelegt).
+-- Geschrieben wird ausschließlich hier im Admin-Bereich der Website; das
+-- Plugin liest die Beiträge nur und zeigt sie am Lobby-Anschlagbrett.
+CREATE TABLE IF NOT EXISTS `smpg_news` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `type` VARCHAR(24) NOT NULL DEFAULT 'info',
+  `title` VARCHAR(128) NOT NULL,
+  `summary` VARCHAR(256) NOT NULL DEFAULT '',
+  -- Text im ColorUtil-Format (&-Codes, &#RRGGBB, <gradient:…>) + [img:N]
+  `body` MEDIUMTEXT NOT NULL,
+  -- ANGEZEIGTER Autor – nicht zwingend der Ersteller.
+  `author_name` VARCHAR(16) NOT NULL,
+  `author_uuid` VARCHAR(36) NULL DEFAULT NULL,
+  `published` TINYINT NOT NULL DEFAULT 1,
+  `pinned` TINYINT NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_pub` (`published`, `pinned`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bilder eines Beitrags, base64-kodiert. Ingame werden sie nicht gerendert –
+-- dort steht nur ein Hinweis auf die Website.
+CREATE TABLE IF NOT EXISTS `smpg_news_images` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `post_id` INT NOT NULL,
+  `idx` INT NOT NULL,
+  `mime` VARCHAR(32) NOT NULL DEFAULT 'image/png',
+  `caption` VARCHAR(191) NOT NULL DEFAULT '',
+  `data` LONGTEXT NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `idx_post` (`post_id`, `idx`),
+  CONSTRAINT `fk_news_img` FOREIGN KEY (`post_id`) REFERENCES `smpg_news` (`id`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ============================================================================
 -- Eigener MySQL-User für die Website:
 --  - SELECT auf alles (Statistiken, Preise, Historie)
---  - Schreiben NUR auf die Login-Code-Tabelle
+--  - Schreiben NUR auf die Login-Code- und die Neuigkeiten-Tabellen
 -- ============================================================================
 CREATE USER IF NOT EXISTS 'trycity_web'@'localhost' IDENTIFIED BY '<PASSWORT>';
 
 GRANT SELECT ON `<DATENBANK>`.* TO 'trycity_web'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON `<DATENBANK>`.`smpg_web_login_codes` TO 'trycity_web'@'localhost';
+
+-- Neuigkeiten werden ausschließlich über den Admin-Bereich gepflegt.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news` TO 'trycity_web'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_images` TO 'trycity_web'@'localhost';
 
 -- ============================================================================
 -- Mod-Panel: Die SELECT-Berechtigung auf alle Tabellen reicht bereits aus.

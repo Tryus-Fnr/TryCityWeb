@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper } from "lucide-react";
 
 type Props = {
   session: { name: string; isAdmin: boolean; isMod: boolean } | null;
@@ -18,6 +18,7 @@ const MARKT_TABS = [
 ];
 
 const ADMIN_TABS = [
+  { href: "/admin/news", label: "Neuigkeiten",  desc: "Beiträge schreiben & bearbeiten", Icon: Newspaper },
   { href: "/infra",     label: "Infrastruktur", desc: "VPS- & Server-Auslastung",   Icon: Server    },
   { href: "/stats",     label: "Server-Stats",  desc: "Spielerzahlen-Verlauf",      Icon: BarChart2 },
   { href: "/servermap", label: "Server-Karte",  desc: "Interaktive Regionskarte",   Icon: Map       },
@@ -78,6 +79,7 @@ export default function Navbar({ session }: Props) {
     { href: "/", label: "Startseite" },
     { href: "https://shop.trycity.net", label: "Shop", external: true },
     ...MARKT_TABS.map((t) => ({ href: t.href, label: t.label })),
+    { href: "/news", label: "Neuigkeiten" },
     { href: "/regelwerk", label: "Regelwerk" },
     ...(session?.isMod && !session?.isAdmin ? MOD_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
     ...(session?.isAdmin ? [...MOD_TABS.map((t) => ({ href: t.href, label: t.label })), ...ADMIN_TABS.map((t) => ({ href: t.href, label: t.label }))] : []),
@@ -150,6 +152,12 @@ export default function Navbar({ session }: Props) {
               </div>
             )}
           </div>
+
+          {/* Neuigkeiten */}
+          <Link href="/news" className={topLinkClass(isActive("/news"))}>
+            <Newspaper className="h-3.5 w-3.5" />
+            Neuigkeiten
+          </Link>
 
           {/* Regelwerk */}
           <Link href="/regelwerk" className={topLinkClass(isActive("/regelwerk"))}>

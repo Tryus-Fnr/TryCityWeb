@@ -17,6 +17,7 @@ import {
 import { getAdminStatus, getModStatus } from "@/lib/auth";
 import TabCarousel, { type CarouselTab } from "@/components/TabCarousel";
 import EconomyLeaderboards from "@/components/EconomyLeaderboards";
+import HomeNews from "@/components/news/HomeNews";
 
 export const dynamic = "force-dynamic";
 
@@ -170,6 +171,9 @@ export default async function Home() {
           />
         </div>
       </section>
+
+      {/* ── LETZTE UPDATES & INFOS ── */}
+      <HomeNews />
 
       {/* ── WIRTSCHAFT BESTENLISTEN ── */}
       <section className="border-b border-white/[0.06] py-16">
