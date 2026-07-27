@@ -139,7 +139,7 @@ export default async function Home() {
         style={{ width: "100vw", marginLeft: "calc(50% - 50vw)" }}
       >
         <Image
-          src="/banner.jpg"
+          src="/banner.webp"
           alt="TryCity Banner"
           fill
           priority
