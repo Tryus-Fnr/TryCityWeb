@@ -44,6 +44,7 @@ function ExpiryBadge({ expiresAt, active }: { expiresAt: number | null; active?:
 
 // ── Wiederverwendbare Strafen-Tabelle (Bans / Mutes / Warns / Kicks) ─────────
 
+
 function PunishmentTable({
   rows,
   showExpiry = true,
@@ -99,7 +100,8 @@ function PunishmentTable({
                 <th className="pb-2 pr-4 font-medium">Grund</th>
                 <th className="pb-2 pr-4 font-medium">Von</th>
                 <th className="pb-2 pr-4 font-medium">Datum</th>
-                {showExpiry && <th className="pb-2 font-medium">Läuft ab</th>}
+                {showExpiry && <th className="pb-2 pr-4 font-medium">Läuft ab</th>}
+                <th className="pb-2 font-medium">Aufgehoben von</th>
               </tr>
             </thead>
             <tbody>
@@ -127,10 +129,24 @@ function PunishmentTable({
                   </td>
                   <td className="py-2.5 pr-4 text-neutral-500 whitespace-nowrap">{fmt(r.createdAt)}</td>
                   {showExpiry && (
-                    <td className="py-2.5 whitespace-nowrap">
+                    <td className="py-2.5 pr-4 whitespace-nowrap">
                       <ExpiryBadge expiresAt={r.expiresAt} active={r.active} />
                     </td>
                   )}
+                  <td className="py-2.5 whitespace-nowrap text-xs">
+                    {!r.active ? (
+                      r.removedByName ? (
+                        <span className="text-neutral-400">
+                          👤 {r.removedByName}
+                          {r.removedAt && <span className="ml-1 text-neutral-600">{fmt(r.removedAt)}</span>}
+                        </span>
+                      ) : (
+                        <span className="italic text-neutral-700">Automatisch</span>
+                      )
+                    ) : (
+                      <span className="text-neutral-800">–</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

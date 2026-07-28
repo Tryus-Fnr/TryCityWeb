@@ -815,6 +815,10 @@ export type BanRow = {
   /** null = permanent (DB-Wert 0 oder NULL), >0 = Ablauf-Timestamp in ms */
   expiresAt: number | null;
   active: boolean;
+  /** Name des Mods der entbannt hat, null = automatisch abgelaufen / unbekannt */
+  removedByName: string | null;
+  /** Zeitpunkt der manuellen Aufhebung in ms, null = automatisch */
+  removedAt: number | null;
 };
 
 /**
@@ -831,12 +835,16 @@ export async function loadAllBans(): Promise<BanRow[]> {
     created_at: number;
     expires_at: number | null;
     active: number;
+    removed_by_name: string | null;
+    removed_at: number | null;
   }>(
     `SELECT p.id, p.target_uuid, tp.name AS target_name, p.reason,
-            sp.name AS staff_name, p.created_at, p.expires_at, p.active
+            sp.name AS staff_name, p.created_at, p.expires_at, p.active,
+            rp.name AS removed_by_name, p.removed_at
      FROM tryus_punishments p
      LEFT JOIN tryus_players tp ON tp.uuid = p.target_uuid
      LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
+     LEFT JOIN tryus_players rp ON rp.uuid = p.removed_by
      WHERE p.type = 'BAN'
      ORDER BY p.created_at DESC
      LIMIT 500`
@@ -853,6 +861,8 @@ export async function loadAllBans(): Promise<BanRow[]> {
       // 0 = permanent im Proxy → null
       expiresAt: rawExpiry === null || rawExpiry === 0 ? null : rawExpiry,
       active: r.active === 1,
+      removedByName: r.removed_by_name ?? null,
+      removedAt: r.removed_at !== null ? Number(r.removed_at) : null,
     };
   });
 }
@@ -869,6 +879,8 @@ export type RecentPunishmentRow = {
   createdAt: number;
   expiresAt: number | null;
   active: boolean;
+  removedByName: string | null;
+  removedAt: number | null;
 };
 
 /**
@@ -889,12 +901,16 @@ export async function loadRecentPunishments(
     created_at: number;
     expires_at: number | null;
     active: number;
+    removed_by_name: string | null;
+    removed_at: number | null;
   }>(
     `SELECT p.id, p.type, p.target_uuid, tp.name AS target_name, p.reason,
-            sp.name AS staff_name, p.created_at, p.expires_at, p.active
+            sp.name AS staff_name, p.created_at, p.expires_at, p.active,
+            rp.name AS removed_by_name, p.removed_at
      FROM tryus_punishments p
      LEFT JOIN tryus_players tp ON tp.uuid = p.target_uuid
      LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
+     LEFT JOIN tryus_players rp ON rp.uuid = p.removed_by
      WHERE p.type = ?
      ORDER BY p.created_at DESC
      LIMIT ?`,
@@ -912,6 +928,8 @@ export async function loadRecentPunishments(
       createdAt: Number(r.created_at),
       expiresAt: rawExpiry === null || rawExpiry === 0 ? null : rawExpiry,
       active: r.active === 1,
+      removedByName: r.removed_by_name ?? null,
+      removedAt: r.removed_at !== null ? Number(r.removed_at) : null,
     };
   });
 }
