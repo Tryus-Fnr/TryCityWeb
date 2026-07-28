@@ -6,7 +6,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Sparkles, Eraser,
   ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X,
 } from "lucide-react";
-import { LEGACY_COLORS, LEGACY_COLOR_NAMES } from "@/lib/mcformat";
+import { LEGACY_COLORS, LEGACY_COLOR_NAMES, toSmallCaps } from "@/lib/mcformat";
 import { NEWS_TYPES, type NewsPost, type NewsImage, type NewsTypeId } from "@/lib/newsTypes";
 import McText from "./McText";
 import {
@@ -140,6 +140,47 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
     applyToSelection((s) => ({ ...s, [key]: !s[key] || undefined }));
 
   const clearFormatting = () => applyToSelection(() => ({}));
+
+  /** Wandelt den markierten Text in Small-Caps-Unicode um (Großbuchstaben/Zahlen bleiben). */
+  const applySmallCapsToSelection = useCallback(() => {
+    const root = editorRef.current;
+    const sel = window.getSelection();
+    if (!root || !sel || sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    if (range.collapsed || !root.contains(range.commonAncestorContainer)) {
+      setError("Markiere zuerst den Text, den du formatieren möchtest.");
+      return;
+    }
+    setError(null);
+
+    const from = textOffsetOf(root, range.startContainer, range.startOffset);
+    const to = textOffsetOf(root, range.endContainer, range.endOffset);
+
+    const pieces = collectRange(root, from, to);
+    range.deleteContents();
+
+    const rebuilt = document.createDocumentFragment();
+    for (const piece of pieces) {
+      if (piece.kind === "text") {
+        rebuilt.appendChild(makeStyledNode(toSmallCaps(piece.text), piece.style, true));
+      } else if (piece.kind === "br") {
+        rebuilt.appendChild(document.createElement("br"));
+      } else {
+        rebuilt.appendChild(piece.node);
+      }
+    }
+
+    range.insertNode(rebuilt);
+    flattenEditor(root);
+
+    const restored = rangeFromOffsets(root, from, to);
+    if (restored) {
+      sel.removeAllRanges();
+      sel.addRange(restored);
+    }
+    syncBody();
+  }, [syncBody]);
 
   // ── Eingabe-Verhalten ─────────────────────────────────────────────────────
 
@@ -362,6 +403,9 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
           </ToolButton>
           <ToolButton title="Verschlüsselt (&k)" onClick={() => toggle("obf")}>
             <Sparkles className="h-4 w-4" />
+          </ToolButton>
+          <ToolButton title="Small Caps (<small>…</small>)" onClick={applySmallCapsToSelection}>
+            <span className="text-xs font-bold tracking-tight">Sᴍ</span>
           </ToolButton>
 
           <Divider />

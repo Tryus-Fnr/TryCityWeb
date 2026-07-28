@@ -64,6 +64,19 @@ const NAMED_COLORS: Record<string, string> = {
 
 const HEX_RE = /^[0-9a-fA-F]{6}$/;
 
+/** Small-Caps-Mapping: Kleinbuchstaben → Unicode-Small-Caps (s und x haben kein Äquivalent). */
+const SMALL_CAPS: Record<string, string> = {
+  a: "ᴀ", b: "ʙ", c: "ᴄ", d: "ᴅ", e: "ᴇ", f: "ғ", g: "ɢ", h: "ʜ",
+  i: "ɪ", j: "ᴊ", k: "ᴋ", l: "ʟ", m: "ᴍ", n: "ɴ", o: "ᴏ", p: "ᴘ",
+  q: "ǫ", r: "ʀ", s: "s", t: "ᴛ", u: "ᴜ", v: "ᴠ", w: "ᴡ", x: "x",
+  y: "ʏ", z: "ᴢ",
+};
+
+/** Wandelt Kleinbuchstaben in Small-Caps-Unicode um; Großbuchstaben und Zahlen bleiben. */
+export function toSmallCaps(text: string): string {
+  return [...text].map((c) => SMALL_CAPS[c] ?? c).join("");
+}
+
 function parseColor(raw: string): string {
   const s = raw.trim().replace(/^#/, "");
   if (HEX_RE.test(s)) return `#${s.toUpperCase()}`;
@@ -181,6 +194,23 @@ function parseSegment(text: string, start: McStyle): McNode[] {
           children: parseSegment(inner, innerStart),
         });
         i = close + "</gradient>".length;
+        continue;
+      }
+    }
+
+    // ── <small>…</small> ─────────────────────────────────────────────────
+    if (text.startsWith("<small>", i)) {
+      const close = text.indexOf("</small>", i);
+      if (close >= 0) {
+        flush();
+        const inner = text.slice(i + "<small>".length, close);
+        // Inner-Nodes parsen, dann bei Text-Knoten Small-Caps anwenden.
+        const innerNodes = parseSegment(inner, { ...style });
+        for (const n of innerNodes) {
+          if (n.kind === "text") n.text = toSmallCaps(n.text);
+          out.push(n);
+        }
+        i = close + "</small>".length;
         continue;
       }
     }
