@@ -803,6 +803,72 @@ export type UnbanRequestRow = {
   resultMessage: string | null;
 };
 
+// ─── Ban-Liste ──────────────────────────────────────────────────────────────
+
+export type BanRow = {
+  id: number;
+  targetUuid: string;
+  targetName: string;
+  reason: string;
+  staffName: string | null;
+  createdAt: number;
+  expiresAt: number | null; // null = permanent
+};
+
+/** Alle aktiven Bans, neueste zuerst. */
+export async function loadAllActiveBans(): Promise<BanRow[]> {
+  const rows = await query<{
+    id: number;
+    target_uuid: string;
+    target_name: string | null;
+    reason: string;
+    staff_name: string | null;
+    created_at: number;
+    expires_at: number | null;
+  }>(
+    `SELECT p.id, p.target_uuid, tp.name AS target_name, p.reason,
+            sp.name AS staff_name, p.created_at, p.expires_at
+     FROM tryus_punishments p
+     LEFT JOIN tryus_players tp ON tp.uuid = p.target_uuid
+     LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
+     WHERE p.type = 'BAN' AND p.active = 1
+     ORDER BY p.created_at DESC
+     LIMIT 500`
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    targetUuid: r.target_uuid,
+    targetName: r.target_name ?? r.target_uuid,
+    reason: r.reason,
+    staffName: r.staff_name ?? null,
+    createdAt: Number(r.created_at),
+    expiresAt: r.expires_at !== null ? Number(r.expires_at) : null,
+  }));
+}
+
+// ─── Spieler-Statistiken ────────────────────────────────────────────────────
+
+export type PlayerStats = {
+  total: number;
+  banned: number;
+};
+
+/** Gesamtzahl aller TryusPlayer + Anzahl gebannter Spieler. */
+export async function loadPlayerStats(): Promise<PlayerStats> {
+  const [totalRows, bannedRows] = await Promise.all([
+    query<{ n: string }>(`SELECT COUNT(*) AS n FROM tryus_players`),
+    query<{ n: string }>(
+      `SELECT COUNT(DISTINCT target_uuid) AS n
+       FROM tryus_punishments
+       WHERE type = 'BAN' AND active = 1`
+    ),
+  ]);
+  return {
+    total: Number(totalRows[0]?.n ?? 0),
+    banned: Number(bannedRows[0]?.n ?? 0),
+  };
+}
+
 export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
   const rows = await query<{
     id: number;
