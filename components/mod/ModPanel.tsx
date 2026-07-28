@@ -10,7 +10,7 @@ import {
 
 type Props = {
   unbanRequests: UnbanRequestRow[];
-  activeBans: BanRow[];
+  allBans: BanRow[];
   playerStats: PlayerStats;
 };
 
@@ -53,7 +53,7 @@ function formatDate(ts: number | string) {
   });
 }
 
-export default function ModPanel({ unbanRequests, activeBans, playerStats }: Props) {
+export default function ModPanel({ unbanRequests, allBans, playerStats }: Props) {
   const [tab, setTab] = useState<"requests" | "bans">("requests");
 
   // Entbannungs-Anträge Filter
@@ -62,6 +62,7 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
 
   // Ban-Liste Filter
   const [banSearch, setBanSearch] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
 
   const filteredRequests = unbanRequests.filter((r) => {
     if (reqFilter !== "ALL" && r.status !== reqFilter) return false;
@@ -69,9 +70,11 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
     return true;
   });
 
-  const filteredBans = activeBans.filter((b) =>
-    !banSearch || b.targetName.toLowerCase().includes(banSearch.toLowerCase())
-  );
+  const filteredBans = allBans.filter((b) => {
+    if (!showInactive && !b.active) return false;
+    if (banSearch && !b.targetName.toLowerCase().includes(banSearch.toLowerCase())) return false;
+    return true;
+  });
 
   const pending = unbanRequests.filter((r) => r.status === "PENDING").length;
   const done    = unbanRequests.filter((r) => r.status === "DONE" || r.status === "APPROVED").length;
@@ -162,7 +165,7 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
             <Ban className="h-4 w-4" />
             Alle Bans
             <span className="rounded-full bg-red-500/15 px-1.5 py-0.5 text-xs font-bold text-red-400">
-              {activeBans.length}
+              {allBans.filter((b) => b.active).length}
             </span>
           </button>
         </div>
@@ -287,13 +290,24 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
         {/* ── Tab: Ban-Liste ── */}
         {tab === "bans" && (
           <div className="p-4">
-            <input
-              type="text"
-              placeholder="Spieler suchen…"
-              value={banSearch}
-              onChange={(e) => setBanSearch(e.target.value)}
-              className="mb-4 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30"
-            />
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                placeholder="Spieler suchen…"
+                value={banSearch}
+                onChange={(e) => setBanSearch(e.target.value)}
+                className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30"
+              />
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-neutral-400 select-none">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/20 bg-white/5 accent-red-500"
+                />
+                Aufgehobene anzeigen
+              </label>
+            </div>
 
             {filteredBans.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-neutral-600">
@@ -329,15 +343,17 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
                               alt={ban.targetName}
                               width={24}
                               height={24}
-                              className="h-6 w-6 rounded"
+                              className={`h-6 w-6 rounded ${!ban.active ? "opacity-40" : ""}`}
                               style={{ imageRendering: "pixelated" }}
                             />
-                            <span className="font-medium text-neutral-200">{ban.targetName}</span>
+                            <span className={`font-medium ${ban.active ? "text-neutral-200" : "text-neutral-600 line-through"}`}>
+                              {ban.targetName}
+                            </span>
                           </Link>
                         </td>
                         <td className="py-2.5 pr-4 max-w-[200px]">
                           <span
-                            className="text-neutral-400 truncate block"
+                            className={`truncate block ${ban.active ? "text-neutral-400" : "text-neutral-700"}`}
                             title={ban.reason}
                           >
                             {ban.reason}
@@ -350,7 +366,11 @@ export default function ModPanel({ unbanRequests, activeBans, playerStats }: Pro
                           {formatDate(ban.createdAt)}
                         </td>
                         <td className="py-2.5 whitespace-nowrap">
-                          {ban.expiresAt === null ? (
+                          {!ban.active ? (
+                            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-semibold text-green-600">
+                              Aufgehoben
+                            </span>
+                          ) : ban.expiresAt === null ? (
                             <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-400">
                               Permanent
                             </span>

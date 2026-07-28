@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireMod } from "@/lib/auth";
-import { loadUnbanRequests, loadAllActiveBans, loadPlayerStats } from "@/lib/queries";
+import { loadUnbanRequests, loadAllBans, loadPlayerStats } from "@/lib/queries";
 import ModPanel from "@/components/mod/ModPanel";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function ModPage() {
 
   const [requests, bans, playerStats] = await Promise.all([
     loadUnbanRequests().catch(() => []),
-    loadAllActiveBans().catch(() => []),
+    loadAllBans().catch(() => []),
     loadPlayerStats().catch(() => ({ total: 0, banned: 0 })),
   ]);
 
@@ -25,7 +25,7 @@ export default async function ModPage() {
       </div>
       <ModPanel
         unbanRequests={requests}
-        activeBans={bans}
+        allBans={bans}
         playerStats={playerStats}
       />
     </div>

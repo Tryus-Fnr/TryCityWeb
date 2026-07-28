@@ -812,11 +812,16 @@ export type BanRow = {
   reason: string;
   staffName: string | null;
   createdAt: number;
-  expiresAt: number | null; // null = permanent
+  /** null = permanent (DB-Wert 0 oder NULL), >0 = Ablauf-Timestamp in ms */
+  expiresAt: number | null;
+  active: boolean;
 };
 
-/** Alle aktiven Bans, neueste zuerst. */
-export async function loadAllActiveBans(): Promise<BanRow[]> {
+/**
+ * Alle Bans (aktive + aufgehobene), neueste zuerst.
+ * expires_at = 0 im Proxy → permanent → wir mappen das auf null.
+ */
+export async function loadAllBans(): Promise<BanRow[]> {
   const rows = await query<{
     id: number;
     target_uuid: string;
@@ -825,25 +830,31 @@ export async function loadAllActiveBans(): Promise<BanRow[]> {
     staff_name: string | null;
     created_at: number;
     expires_at: number | null;
+    active: number;
   }>(
     `SELECT p.id, p.target_uuid, tp.name AS target_name, p.reason,
-            sp.name AS staff_name, p.created_at, p.expires_at
+            sp.name AS staff_name, p.created_at, p.expires_at, p.active
      FROM tryus_punishments p
      LEFT JOIN tryus_players tp ON tp.uuid = p.target_uuid
      LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
-     WHERE p.type = 'BAN' AND p.active = 1
+     WHERE p.type = 'BAN'
      ORDER BY p.created_at DESC
      LIMIT 500`
   );
-  return rows.map((r) => ({
-    id: r.id,
-    targetUuid: r.target_uuid,
-    targetName: r.target_name ?? r.target_uuid,
-    reason: r.reason,
-    staffName: r.staff_name ?? null,
-    createdAt: Number(r.created_at),
-    expiresAt: r.expires_at !== null ? Number(r.expires_at) : null,
-  }));
+  return rows.map((r) => {
+    const rawExpiry = r.expires_at !== null ? Number(r.expires_at) : null;
+    return {
+      id: r.id,
+      targetUuid: r.target_uuid,
+      targetName: r.target_name ?? r.target_uuid,
+      reason: r.reason,
+      staffName: r.staff_name ?? null,
+      createdAt: Number(r.created_at),
+      // 0 = permanent im Proxy → null
+      expiresAt: rawExpiry === null || rawExpiry === 0 ? null : rawExpiry,
+      active: r.active === 1,
+    };
+  });
 }
 
 // ─── Spieler-Statistiken ────────────────────────────────────────────────────
