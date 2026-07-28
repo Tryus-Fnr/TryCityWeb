@@ -857,6 +857,132 @@ export async function loadAllBans(): Promise<BanRow[]> {
   });
 }
 
+// ─── Mutes / Warns / Kicks ─────────────────────────────────────────────────
+
+export type RecentPunishmentRow = {
+  id: number;
+  type: "MUTE" | "WARN" | "KICK";
+  targetUuid: string;
+  targetName: string;
+  reason: string;
+  staffName: string | null;
+  createdAt: number;
+  expiresAt: number | null;
+  active: boolean;
+};
+
+/**
+ * Letzte Strafen eines bestimmten Typs (MUTE / WARN / KICK), neueste zuerst.
+ * expires_at = 0 → permanent (Mutes).
+ */
+export async function loadRecentPunishments(
+  type: "MUTE" | "WARN" | "KICK",
+  limit = 300
+): Promise<RecentPunishmentRow[]> {
+  const rows = await query<{
+    id: number;
+    type: string;
+    target_uuid: string;
+    target_name: string | null;
+    reason: string;
+    staff_name: string | null;
+    created_at: number;
+    expires_at: number | null;
+    active: number;
+  }>(
+    `SELECT p.id, p.type, p.target_uuid, tp.name AS target_name, p.reason,
+            sp.name AS staff_name, p.created_at, p.expires_at, p.active
+     FROM tryus_punishments p
+     LEFT JOIN tryus_players tp ON tp.uuid = p.target_uuid
+     LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
+     WHERE p.type = ?
+     ORDER BY p.created_at DESC
+     LIMIT ?`,
+    [type, limit]
+  );
+  return rows.map((r) => {
+    const rawExpiry = r.expires_at !== null ? Number(r.expires_at) : null;
+    return {
+      id: r.id,
+      type: r.type as RecentPunishmentRow["type"],
+      targetUuid: r.target_uuid,
+      targetName: r.target_name ?? r.target_uuid,
+      reason: r.reason,
+      staffName: r.staff_name ?? null,
+      createdAt: Number(r.created_at),
+      expiresAt: rawExpiry === null || rawExpiry === 0 ? null : rawExpiry,
+      active: r.active === 1,
+    };
+  });
+}
+
+// ─── Anticheat-Flags (global, neueste) ─────────────────────────────────────
+
+export type RecentAnticheatFlagRow = {
+  id: number;
+  playerUuid: string;
+  playerName: string;
+  checkId: string;
+  checkName: string;
+  category: string;
+  details: string;
+  server: string;
+  ping: number;
+  tps: number;
+  lagged: boolean;
+  createdAt: number;
+};
+
+/**
+ * Neueste Anticheat-Flags aller Spieler (global), neueste zuerst.
+ * Fällt still auf [] zurück, wenn die Tabelle noch nicht existiert.
+ */
+export async function loadRecentAnticheatFlags(
+  limit = 300
+): Promise<RecentAnticheatFlagRow[]> {
+  try {
+    const rows = await query<{
+      id: number;
+      uuid: string;
+      player_name: string | null;
+      check_id: string;
+      check_name: string;
+      category: string | null;
+      details: string | null;
+      server: string | null;
+      ping: number | null;
+      tps: number | null;
+      lagged: number;
+      created_at: number;
+    }>(
+      `SELECT f.id, f.uuid, p.name AS player_name,
+              f.check_id, f.check_name, f.category, f.details,
+              f.server, f.ping, f.tps, f.lagged, f.created_at
+       FROM tryus_anticheat_flags f
+       LEFT JOIN tryus_players p ON p.uuid = f.uuid
+       ORDER BY f.created_at DESC
+       LIMIT ?`,
+      [limit]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      playerUuid: r.uuid,
+      playerName: r.player_name ?? r.uuid,
+      checkId: r.check_id,
+      checkName: r.check_name,
+      category: r.category ?? "",
+      details: r.details ?? "",
+      server: r.server ?? "",
+      ping: r.ping !== null ? Number(r.ping) : -1,
+      tps: r.tps !== null ? Number(r.tps) : 20,
+      lagged: r.lagged === 1,
+      createdAt: Number(r.created_at),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ─── Spieler-Statistiken ────────────────────────────────────────────────────
 
 export type PlayerStats = {
