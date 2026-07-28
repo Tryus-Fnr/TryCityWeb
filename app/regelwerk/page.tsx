@@ -44,7 +44,7 @@ const BANNED_CANT_JOIN = [
   { name: "ESP / Wallhack", desc: "Spieler/Items durch Wände sehen" },
   { name: "Minimap mit Spieler-Radar", desc: "Zeigt Positionen anderer Spieler auf der Karte" },
   { name: "Radar-Mods", desc: "Jegliche Mods, die Spieler oder Mobs orten" },
-  { name: "Litematica / Servux", desc: "Schematic-Mod mit Server-Datenzugriff (Servux-Channel)" },
+  // { name: "Litematica / Servux", desc: "Schematic-Mod mit Server-Datenzugriff (Servux-Channel)" },
   { name: "World Downloader", desc: "Lädt Teile der Spielwelt als lokale Map herunter" },
   { name: "Schematic Mods (zum Kopieren fremder Bauten)", desc: "Bauten anderer Spieler ohne Erlaubnis kopieren" },
   { name: "Auto-Fisher / Auto-Farm Mods", desc: "Vollautomatisches Angeln oder Farmen ohne Anwesenheit" },
