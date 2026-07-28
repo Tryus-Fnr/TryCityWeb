@@ -258,6 +258,21 @@ export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint
   return result;
 }
 
+/** Verkaufsvolumen je Material der letzten 48 Stunden (für Sort "Meist verkauft"). */
+export async function loadSold48h(): Promise<Record<string, number>> {
+  const rows = await query<{ material: string; sold48h: string }>(
+    `SELECT material, SUM(sold) AS sold48h
+     FROM smpg_price_history
+     WHERE ts >= NOW() - INTERVAL 48 HOUR
+     GROUP BY material`
+  );
+  const result: Record<string, number> = {};
+  for (const r of rows) {
+    result[r.material] = Number(r.sold48h);
+  }
+  return result;
+}
+
 // ─── SMP-Spieler Inventar ───────────────────────────────────────────────────
 
 export type RawInventoryRow = {

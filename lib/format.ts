@@ -15,6 +15,11 @@ export function formatMoney(value: number): string {
   });
 }
 
+/** Stückzahl ohne Nachkommastellen: 12345 -> "12.345" */
+export function formatCount(value: number): string {
+  return Math.round(value).toLocaleString("de-DE");
+}
+
 /** Prozentwert mit Vorzeichen: 3.2 -> "+3,2 %" */
 export function formatPct(value: number): string {
   const s = value.toLocaleString("de-DE", { maximumFractionDigits: 1 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { formatMaterialName, formatMoney, formatPct } from "@/lib/format";
+import { formatCount, formatMaterialName, formatMoney, formatPct } from "@/lib/format";
 import ItemIcon from "@/components/ItemIcon";
 
 type Item = {
@@ -20,6 +20,7 @@ const SORTS = [
   { key: "price-desc", label: "Höchster Preis" },
   { key: "price-asc", label: "Niedrigster Preis" },
   { key: "change", label: "Größte Änderung" },
+  { key: "sold48h", label: "Meist verkauft 48h" },
   { key: "name", label: "Name A–Z" },
 ] as const;
 
@@ -31,6 +32,7 @@ export default function ItemBrowser() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<string>("price-desc");
   const [sparklines, setSparklines] = useState<Record<string, SparklinePoint[]>>({});
+  const [sold48h, setSold48h] = useState<Record<string, number>>({});
   const [page, setPage] = useState(0);
 
   useEffect(() => {
@@ -45,6 +47,11 @@ export default function ItemBrowser() {
     fetch("/api/items/sparklines")
       .then((r) => r.json())
       .then((d) => { if (d.ok) setSparklines(d.sparklines); })
+      .catch(() => {/* silent */});
+
+    fetch("/api/items/sold48h")
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setSold48h(d.sold48h); })
       .catch(() => {/* silent */});
   }, []);
 
@@ -65,9 +72,15 @@ export default function ItemBrowser() {
       case "price-asc":  list.sort((a, b) => a.price - b.price); break;
       case "change":     list.sort((a, b) => changeOf(b) - changeOf(a)); break;
       case "name":       list.sort((a, b) => formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))); break;
+      // Bei gleicher Stückzahl (z.B. beide 0) nach Namen – sonst springt die
+      // Reihenfolge bei jedem Neuladen, weil sort() dort nichts festlegt.
+      case "sold48h":    list.sort((a, b) =>
+                           ((sold48h[b.material] ?? 0) - (sold48h[a.material] ?? 0)) ||
+                           formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))
+                         ); break;
     }
     return list;
-  }, [items, search, sort]);
+  }, [items, search, sort, sold48h]);
 
   // Reset page wenn sich Suche/Sortierung ändert
   useEffect(() => { setPage(0); }, [search, sort]);
@@ -147,7 +160,16 @@ export default function ItemBrowser() {
                     ) : (
                       <span className="text-neutral-600">± 0 % 24h</span>
                     )}
-                    <span className="text-neutral-600">Verlauf →</span>
+                    {/* Bei "Meist verkauft" die Zahl zeigen, nach der sortiert wird –
+                        eine Rangliste ohne den Wert dahinter ist nicht nachvollziehbar. */}
+                    {sort === "sold48h" ? (
+                      <span className="text-sky-300">
+                        {formatCount(sold48h[item.material] ?? 0)}
+                        <span className="text-neutral-600"> verkauft</span>
+                      </span>
+                    ) : (
+                      <span className="text-neutral-600">Verlauf →</span>
+                    )}
                   </div>
                 </Link>
               );
