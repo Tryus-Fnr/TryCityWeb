@@ -53,6 +53,21 @@ const SERIES = [
   { key: "avgOrder",   label: "Ø Kaufauftrag",  color: "#fb923c" },
 ] as const;
 
+type SeriesKey = (typeof SERIES)[number]["key"];
+
+/**
+ * Achsenbeschriftung. Preise reichen von 0,01 bis in die Tausender – ohne
+ * adaptive Nachkommastellen stünden auf einer 0,01er-Achse dreimal "$0,01".
+ */
+function axisTick(v: number): string {
+  const abs = Math.abs(v);
+  if (abs === 0) return "$0";
+  if (abs >= 1000)
+    return `$${(v / 1000).toLocaleString("de-DE", { maximumFractionDigits: 1 })}k`;
+  if (abs >= 1) return `$${v.toLocaleString("de-DE", { maximumFractionDigits: 2 })}`;
+  return `$${v.toLocaleString("de-DE", { maximumFractionDigits: 4 })}`;
+}
+
 const RANGES = [
   { key: "14d", label: "14 Tage" },
   { key: "30d", label: "30 Tage" },
@@ -66,6 +81,9 @@ export default function ItemDetail({ material }: { material: string }) {
   const [market, setMarket] = useState<MarketPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Jede Serie auf ihrer eigenen Y-Achse. Nötig, weil ein Shoppreis von $0,01 neben
+  // einem Auktionsschnitt von $500 auf einer gemeinsamen Achse eine flache Linie wäre.
+  const [splitScales, setSplitScales] = useState(true);
 
   const load = useCallback(
     async (r: string) => {
@@ -101,6 +119,23 @@ export default function ItemDetail({ material }: { material: string }) {
       return { ...h, avgAuction: mkt?.avgAuction ?? null, avgOrder: mkt?.avgOrder ?? null };
     });
   }, [data?.history, market]);
+
+  // Serien ohne einen einzigen Datenpunkt bekommen keine Achse – sonst stünde eine
+  // leere "$0"-Skala im Diagramm.
+  const hasData = useMemo(
+    () => ({
+      price:      merged.some((p) => p.price !== null && p.price !== undefined),
+      avgAuction: merged.some((p) => p.avgAuction !== null),
+      avgOrder:   merged.some((p) => p.avgOrder !== null),
+    }),
+    [merged]
+  );
+
+  /** Achse, an der sich Gitternetz und Änderungsmarker orientieren. */
+  const primaryAxisId: string = splitScales
+    ? SERIES.find((s) => hasData[s.key] && !hidden.has(s.key))?.key ?? "price"
+    : "shared";
+  const axisIdOf = (key: SeriesKey) => (splitScales ? key : "shared");
 
   const toggleSeries = (key: string) => {
     setHidden((prev) => {
@@ -172,7 +207,24 @@ export default function ItemDetail({ material }: { material: string }) {
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <div className="mb-1 px-2 flex items-center justify-between">
           <h2 className="text-sm font-medium text-neutral-400">Preisvergleich</h2>
-          <span className="text-xs text-neutral-600">Legende anklicken zum Ein-/Ausblenden</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSplitScales((v) => !v)}
+              title={
+                splitScales
+                  ? "Jede Serie hat ihre eigene Skala – die Höhen der Linien sind untereinander NICHT vergleichbar."
+                  : "Alle Serien auf einer Skala – Höhen sind direkt vergleichbar, kleine Werte aber ggf. platt."
+              }
+              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                splitScales
+                  ? "border-sky-400/40 bg-sky-500/15 text-sky-300"
+                  : "border-white/10 text-neutral-400 hover:bg-white/5"
+              }`}
+            >
+              Eigene Skala je Serie
+            </button>
+            <span className="text-xs text-neutral-600">Legende anklicken zum Ein-/Ausblenden</span>
+          </div>
         </div>
 
         {loading ? (
@@ -210,14 +262,21 @@ export default function ItemDetail({ material }: { material: string }) {
             </div>
 
             <ResponsiveContainer width="100%" height={320}>
-              <ComposedChart data={merged} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <ComposedChart
+                data={merged}
+                margin={{ top: 8, right: splitScales ? 0 : 8, left: splitScales ? 0 : -8, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="grad-price" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#34d399" stopOpacity={0.3} />
                     <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <CartesianGrid
+                  yAxisId={primaryAxisId}
+                  stroke="rgba(255,255,255,0.06)"
+                  vertical={false}
+                />
                 <XAxis
                   dataKey="ts"
                   tickFormatter={formatTs}
@@ -225,12 +284,31 @@ export default function ItemDetail({ material }: { material: string }) {
                   tick={{ fill: "#737373", fontSize: 12 }}
                   minTickGap={60}
                 />
-                <YAxis
-                  domain={["auto", "auto"]}
-                  stroke="#525252"
-                  tick={{ fill: "#737373", fontSize: 12 }}
-                  tickFormatter={(v) => `$${v}`}
-                />
+                {/* Eine Achse pro Serie (in der Serienfarbe), damit $0,01 neben $500
+                    nicht zur flachen Linie wird – oder eine gemeinsame Achse. */}
+                {splitScales ? (
+                  SERIES.map((s) => (
+                    <YAxis
+                      key={s.key}
+                      yAxisId={s.key}
+                      orientation={s.key === "price" ? "left" : "right"}
+                      domain={["auto", "auto"]}
+                      width={58}
+                      stroke={s.color}
+                      tick={{ fill: s.color, fontSize: 11 }}
+                      tickFormatter={axisTick}
+                      hide={hidden.has(s.key) || !hasData[s.key]}
+                    />
+                  ))
+                ) : (
+                  <YAxis
+                    yAxisId="shared"
+                    domain={["auto", "auto"]}
+                    stroke="#525252"
+                    tick={{ fill: "#737373", fontSize: 12 }}
+                    tickFormatter={axisTick}
+                  />
+                )}
                 <Tooltip
                   contentStyle={{
                     background: "#171717",
@@ -249,6 +327,7 @@ export default function ItemDetail({ material }: { material: string }) {
                 {visibleChanges.map((c, i) => (
                   <ReferenceLine
                     key={i}
+                    yAxisId={primaryAxisId}
                     x={nearestTs(data.history, c.changedAt)}
                     stroke="#f59e0b"
                     strokeDasharray="4 4"
@@ -258,6 +337,7 @@ export default function ItemDetail({ material }: { material: string }) {
                 {/* Shoppreis als Area */}
                 <Area
                   type="monotone"
+                  yAxisId={axisIdOf("price")}
                   dataKey="price"
                   stroke="#34d399"
                   strokeWidth={hidden.has("price") ? 0 : 2}
@@ -269,6 +349,7 @@ export default function ItemDetail({ material }: { material: string }) {
                 {/* Ø Auktionshaus */}
                 <Line
                   type="monotone"
+                  yAxisId={axisIdOf("avgAuction")}
                   dataKey="avgAuction"
                   stroke="#a78bfa"
                   strokeWidth={2}
@@ -280,6 +361,7 @@ export default function ItemDetail({ material }: { material: string }) {
                 {/* Ø Kaufauftrag */}
                 <Line
                   type="monotone"
+                  yAxisId={axisIdOf("avgOrder")}
                   dataKey="avgOrder"
                   stroke="#fb923c"
                   strokeWidth={2}
