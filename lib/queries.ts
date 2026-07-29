@@ -1646,3 +1646,121 @@ export async function loadCreatorActiveUsers(
     expiresAt: r.expires_at,
   }));
 }
+
+// ─── Spieler-Netzwerk (Admin) ───────────────────────────────────────────────
+
+export type NetworkNode = {
+  uuid: string;
+  name: string;
+  /** Gruppen-Id für die Einfärbung; null = keiner Gruppe zugeordnet. */
+  group: number | null;
+  groupName: string | null;
+};
+
+/** Kantengewicht: 3 = sehr stark, 2 = mittel, 1 = schwach. */
+export type NetworkEdge = { a: string; b: string; weight: number };
+
+export type PlayerNetwork = { nodes: NetworkNode[]; edges: NetworkEdge[] };
+
+/**
+ * Baut den Beziehungsgraphen der zuletzt aktiven Spieler.
+ *
+ * Bewusst OHNE Details in der Ausgabe: Nach draußen gehen nur Knoten, Kanten und
+ * ein Gewicht – keine Herkunft der Verbindung und keine personenbezogenen
+ * Rohdaten. Damit lässt sich aus dem Graphen nicht ablesen, woher eine Kante
+ * stammt.
+ *
+ * @param days        Nur Spieler, die in diesem Zeitraum zuletzt online waren
+ * @param minDegree   Nur Spieler mit mindestens so vielen Verbindungen
+ */
+export async function loadPlayerNetwork(
+  days = 30,
+  minDegree = 2
+): Promise<PlayerNetwork> {
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+
+  const players = await query<{ uuid: string; name: string }>(
+    `SELECT uuid, name FROM tryus_players
+      WHERE lastJoin >= ? AND name IS NOT NULL`,
+    [since]
+  );
+  const active = new Map(players.map((p) => [p.uuid, p.name]));
+  if (active.size === 0) return { nodes: [], edges: [] };
+
+  // Kanten sammeln; pro Paar zählt die STÄRKSTE Beziehung.
+  const edgeMap = new Map<string, NetworkEdge>();
+  const addEdge = (a: string, b: string, weight: number) => {
+    if (a === b || !active.has(a) || !active.has(b)) return;
+    const [x, y] = a < b ? [a, b] : [b, a];
+    const key = `${x}|${y}`;
+    const existing = edgeMap.get(key);
+    if (!existing) edgeMap.set(key, { a: x, b: y, weight });
+    else if (weight > existing.weight) existing.weight = weight;
+  };
+
+  // Stärkste Bindung: gemeinsame Gruppe
+  const groupRows = await query<{ clan_id: number; uuid: string; name: string }>(
+    `SELECT cm.clan_id, cm.uuid, c.name
+       FROM tryus_clan_members cm
+       JOIN tryus_clans c ON c.id = cm.clan_id`
+  );
+  const groupOf = new Map<string, { id: number; name: string }>();
+  const byGroup = new Map<number, string[]>();
+  for (const r of groupRows) {
+    if (!active.has(r.uuid)) continue;
+    groupOf.set(r.uuid, { id: Number(r.clan_id), name: r.name });
+    const list = byGroup.get(Number(r.clan_id)) ?? [];
+    list.push(r.uuid);
+    byGroup.set(Number(r.clan_id), list);
+  }
+  for (const members of byGroup.values()) {
+    for (let i = 0; i < members.length; i++) {
+      for (let j = i + 1; j < members.length; j++) addEdge(members[i], members[j], 3);
+    }
+  }
+
+  // Mittlere Bindung
+  const relRows = await query<{ a: string; b: string }>(
+    `SELECT playerUUID AS a, friendUUID AS b FROM friends WHERE accepted = 1`
+  );
+  for (const r of relRows) addEdge(r.a, r.b, 2);
+
+  // Schwache Bindung – nur die Verknüpfung selbst, keine Rohwerte nach außen.
+  const weakRows = await query<{ a: string; b: string }>(
+    `SELECT r1.player_uuid AS a, r2.player_uuid AS b
+       FROM tryus_ip_records r1
+       JOIN tryus_ip_records r2
+         ON r2.ip = r1.ip AND r2.player_uuid > r1.player_uuid`
+  );
+  for (const r of weakRows) addEdge(r.a, r.b, 1);
+
+  // Nur Spieler mit genügend Verbindungen behalten – iterativ, damit auch
+  // Knoten wegfallen, die erst durch das Entfernen anderer unter die Grenze rutschen.
+  let edges = [...edgeMap.values()];
+  let keep = new Set(active.keys());
+  for (;;) {
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      if (!keep.has(e.a) || !keep.has(e.b)) continue;
+      degree.set(e.a, (degree.get(e.a) ?? 0) + 1);
+      degree.set(e.b, (degree.get(e.b) ?? 0) + 1);
+    }
+    const next = new Set<string>();
+    for (const uuid of keep) if ((degree.get(uuid) ?? 0) >= minDegree) next.add(uuid);
+    if (next.size === keep.size) break;
+    keep = next;
+  }
+  edges = edges.filter((e) => keep.has(e.a) && keep.has(e.b));
+
+  const nodes: NetworkNode[] = [...keep].map((uuid) => {
+    const g = groupOf.get(uuid);
+    return {
+      uuid,
+      name: active.get(uuid)!,
+      group: g?.id ?? null,
+      groupName: g?.name ?? null,
+    };
+  });
+
+  return { nodes, edges };
+}
