@@ -1075,6 +1075,26 @@ export async function loadUnbanRequests(): Promise<UnbanRequestRow[]> {
   }));
 }
 
+import { CLAN_PERMISSIONS } from "./clanPermissions";
+export { CLAN_PERMISSIONS };
+export type { ClanPermissionKey } from "./clanPermissions";
+
+export type ClanRankDetail = {
+  id: number;
+  name: string;
+  /** KLEINER = mächtiger. Der niedrigste Wert im Clan ist der Anführer-Rang. */
+  priority: number;
+  permissions: Record<string, boolean>;
+};
+
+export type ClanMemberDetail = {
+  uuid: string;
+  name: string;
+  rankId: number | null;
+  rankName: string | null;
+  rankPriority: number | null;
+};
+
 export type ClanDetail = {
   id: number;
   name: string;
@@ -1082,16 +1102,73 @@ export type ClanDetail = {
   tag: string;
   color: string | null;
   secondaryColor: string | null;
+  /** NONE | GRADIENT | SWITCH – bestimmt, wie der Tag eingefärbt wird. */
+  tagStyle: string;
+  /** Formatierungscodes wie "l" (fett) oder "lo" (fett+kursiv). */
+  formattingCodes: string;
   bankBalance: number;
-  members: {
-    uuid: string;
-    name: string;
-    rankId: number | null;
-    rankName: string | null;
-    rankPriority: number | null;
-  }[];
-  ranks: { id: number; name: string; priority: number }[];
+  members: ClanMemberDetail[];
+  ranks: ClanRankDetail[];
 };
+
+/** Kurzform für die Clan-Übersicht. */
+export type ClanSummary = {
+  id: number;
+  name: string;
+  description: string | null;
+  tag: string;
+  color: string | null;
+  secondaryColor: string | null;
+  tagStyle: string;
+  formattingCodes: string;
+  memberCount: number;
+  /** Anführer laut niedrigster Rang-Priorität. */
+  ownerName: string | null;
+};
+
+/**
+ * Alle Clans für die Übersichtsseite – öffentlich, ohne Bankdaten.
+ * Der Anführer wird über den Rang mit der KLEINSTEN Priorität ermittelt
+ * (so macht es auch `Clan.getOwnerRank()` im Proxy-Plugin).
+ */
+export async function loadAllClans(): Promise<ClanSummary[]> {
+  const rows = await query<{
+    id: number;
+    name: string;
+    description: string | null;
+    tag: string;
+    color: string | null;
+    secondary_color: string | null;
+    tag_style: string | null;
+    formatting_codes: string | null;
+    member_count: number;
+    owner_name: string | null;
+  }>(
+    `SELECT c.id, c.name, c.description, c.tag, c.color, c.secondary_color,
+            c.tag_style, c.formatting_codes,
+            (SELECT COUNT(*) FROM tryus_clan_members m WHERE m.clan_id = c.id) AS member_count,
+            (SELECT p.name
+               FROM tryus_clan_members m2
+               JOIN tryus_clan_ranks r2 ON r2.clan_id = m2.clan_id AND r2.id = m2.rank_id
+               JOIN tryus_players p ON p.uuid = m2.uuid
+              WHERE m2.clan_id = c.id
+              ORDER BY r2.priority ASC LIMIT 1) AS owner_name
+       FROM tryus_clans c
+      ORDER BY member_count DESC, c.name ASC`
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    name: r.name,
+    description: r.description,
+    tag: r.tag,
+    color: r.color,
+    secondaryColor: r.secondary_color,
+    tagStyle: (r.tag_style ?? "NONE").toUpperCase(),
+    formattingCodes: r.formatting_codes ?? "",
+    memberCount: Number(r.member_count),
+    ownerName: r.owner_name,
+  }));
+}
 
 export async function loadClanDetail(clanId: number): Promise<ClanDetail | null> {
   const clans = await query<{
@@ -1101,15 +1178,20 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
     tag: string;
     color: string | null;
     secondary_color: string | null;
+    tag_style: string | null;
+    formatting_codes: string | null;
     bank_balance: string;
   }>(
-    `SELECT id, name, description, tag, color, secondary_color, bank_balance
+    `SELECT id, name, description, tag, color, secondary_color,
+            tag_style, formatting_codes, bank_balance
      FROM tryus_clans WHERE id = ? LIMIT 1`,
     [clanId]
   );
   if (clans.length === 0) return null;
   const clan = clans[0];
 
+  // Priorität AUFSTEIGEND: Der kleinste Wert ist der Anführer-Rang
+  // (siehe Clan.getOwnerRank() im Proxy-Plugin – dort gewinnt die NIEDRIGSTE Zahl).
   const members = await query<{
     uuid: string;
     name: string;
@@ -1122,14 +1204,30 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
      JOIN tryus_players p ON p.uuid = cm.uuid
      LEFT JOIN tryus_clan_ranks cr ON cr.clan_id = cm.clan_id AND cr.id = cm.rank_id
      WHERE cm.clan_id = ?
-     ORDER BY cr.priority DESC, p.name ASC`,
+     ORDER BY cr.priority ASC, p.name ASC`,
     [clanId]
   );
 
-  const ranks = await query<{ id: number; name: string; priority: number }>(
-    `SELECT id, name, priority FROM tryus_clan_ranks WHERE clan_id = ? ORDER BY priority DESC`,
+  // SELECT * statt Spaltenliste: Die perm_-Spalten wurden per ALTER TABLE
+  // nachgerüstet und sind je nach Alter der Datenbank evtl. nicht alle vorhanden.
+  const rankRows = await query<Record<string, unknown>>(
+    `SELECT * FROM tryus_clan_ranks WHERE clan_id = ? ORDER BY priority ASC`,
     [clanId]
   );
+
+  const ranks: ClanRankDetail[] = rankRows.map((r) => {
+    const permissions: Record<string, boolean> = {};
+    for (const perm of CLAN_PERMISSIONS) {
+      const raw = r[perm.key];
+      permissions[perm.key] = raw === 1 || raw === true || raw === "1";
+    }
+    return {
+      id: Number(r.id),
+      name: String(r.name),
+      priority: Number(r.priority),
+      permissions,
+    };
+  });
 
   return {
     id: Number(clan.id),
@@ -1138,6 +1236,8 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
     tag: clan.tag,
     color: clan.color,
     secondaryColor: clan.secondary_color,
+    tagStyle: (clan.tag_style ?? "NONE").toUpperCase(),
+    formattingCodes: clan.formatting_codes ?? "",
     bankBalance: Number(clan.bank_balance),
     members: members.map((m) => ({
       uuid: m.uuid,
@@ -1146,7 +1246,7 @@ export async function loadClanDetail(clanId: number): Promise<ClanDetail | null>
       rankName: m.rank_name,
       rankPriority: m.rank_priority !== null ? Number(m.rank_priority) : null,
     })),
-    ranks: ranks.map((r) => ({ id: Number(r.id), name: r.name, priority: Number(r.priority) })),
+    ranks,
   };
 }
 

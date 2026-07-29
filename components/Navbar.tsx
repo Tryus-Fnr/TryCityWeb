@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper, Swords } from "lucide-react";
 
 type Props = {
   session: { name: string; isAdmin: boolean; isMod: boolean } | null;
@@ -15,6 +15,7 @@ const MARKT_TABS = [
   { href: "/auction",  label: "Auktionshaus", desc: "Spieler-zu-Spieler Handel",                Icon: Hammer      },
   { href: "/orders",   label: "Orders",       desc: "Offene Kaufaufträge erfüllen",              Icon: Package     },
   { href: "/bounties", label: "Kopfgelder",   desc: "Aktive Kopfgelder & Rangliste",             Icon: Crosshair   },
+  { href: "/clans",    label: "Clans",        desc: "Alle Clans, Mitglieder & Ränge",            Icon: Swords      },
 ];
 
 const ADMIN_TABS = [
