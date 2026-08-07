@@ -1,4 +1,4 @@
-import { query } from "./db";
+import { exec, query } from "./db";
 
 /**
  * Alle Lese-Queries der Website an die Spiel-Datenbank.
@@ -108,6 +108,8 @@ export async function loadItemDetail(material: string, days: number | null) {
 
   return {
     material,
+    meta: await loadItemMeta(material),
+    metaHistory: await loadMetaHistory(material),
     currentPrice: current.length > 0 ? Number(current[0].sell_price) : null,
     settings:
       settings.length > 0
@@ -132,6 +134,130 @@ export async function loadItemDetail(material: string, days: number | null) {
       })
     ),
   };
+}
+
+// ─── Metas (befristete Preis-Anhebungen) ───────────────────────────────────
+
+/**
+ * Eine Meta hebt den Verkaufspreis eines Items für eine begrenzte Zeit an.
+ * Gesetzt wird sie vom Admin – ingame über /dynprice meta oder hier auf der
+ * Item-Seite. Das Minecraft-Netzwerk wertet die Tabelle bei jedem
+ * Anpassungslauf (00:00 und 12:00) aus.
+ *
+ * Zustände: PENDING (wartet auf den nächsten Lauf) → ACTIVE (zieht zum
+ * Zielpreis) → COOLDOWN (geht zurück auf den Preis davor) → DONE.
+ */
+export type ItemMeta = {
+  id: number;
+  material: string;
+  targetPrice: number;
+  strength: number; // 0..1
+  startAt: string;
+  endAt: string;
+  state: "PENDING" | "ACTIVE" | "COOLDOWN" | "DONE";
+  priceBefore: number | null;
+  createdBy: string;
+};
+
+type MetaRow = {
+  id: number;
+  material: string;
+  target_price: string;
+  strength: string;
+  start_at: string;
+  end_at: string;
+  state: ItemMeta["state"];
+  price_before: string | null;
+  created_by: string;
+};
+
+const mapMeta = (r: MetaRow): ItemMeta => ({
+  id: r.id,
+  material: r.material,
+  targetPrice: Number(r.target_price),
+  strength: Number(r.strength),
+  startAt: r.start_at,
+  endAt: r.end_at,
+  state: r.state,
+  priceBefore: r.price_before !== null ? Number(r.price_before) : null,
+  createdBy: r.created_by,
+});
+
+const META_COLS =
+  "id, material, target_price, strength, start_at, end_at, state, price_before, created_by";
+
+/** Die laufende Meta eines Items (PENDING/ACTIVE/COOLDOWN) – oder null. */
+export async function loadItemMeta(material: string): Promise<ItemMeta | null> {
+  const rows = await query<MetaRow>(
+    `SELECT ${META_COLS} FROM smpg_price_meta
+     WHERE material = ? AND state <> 'DONE' ORDER BY id DESC LIMIT 1`,
+    [material]
+  );
+  return rows.length > 0 ? mapMeta(rows[0]) : null;
+}
+
+/** Abgeschlossene Metas eines Items – als Marker im Graphen. */
+export async function loadMetaHistory(material: string): Promise<ItemMeta[]> {
+  const rows = await query<MetaRow>(
+    `SELECT ${META_COLS} FROM smpg_price_meta
+     WHERE material = ? AND state = 'DONE' ORDER BY start_at ASC LIMIT 50`,
+    [material]
+  );
+  return rows.map(mapMeta);
+}
+
+/** Alle laufenden Metas im Netzwerk. */
+export async function loadOpenMetas(): Promise<ItemMeta[]> {
+  const rows = await query<MetaRow>(
+    `SELECT ${META_COLS} FROM smpg_price_meta
+     WHERE state <> 'DONE' ORDER BY end_at ASC`
+  );
+  return rows.map(mapMeta);
+}
+
+/**
+ * Legt eine Meta an. Eine bereits laufende Meta desselben Items wird dabei
+ * abgeschlossen – es gibt immer höchstens eine gleichzeitig.
+ *
+ * @param hours Laufzeit ab jetzt in Stunden
+ */
+export async function createItemMeta(
+  material: string,
+  targetPrice: number,
+  strength: number,
+  hours: number,
+  createdBy: string
+): Promise<void> {
+  // Ersetzt eine laufende Meta? Dann deren price_before übernehmen – sonst
+  // merkt sich die neue Meta den bereits angehobenen Preis als "davor" und der
+  // Preis schraubt sich bei jedem Ersetzen weiter hoch.
+  const running = await loadItemMeta(material);
+  const carryOver = running?.priceBefore ?? null;
+
+  await exec(`UPDATE smpg_price_meta SET state = 'DONE' WHERE material = ? AND state <> 'DONE'`, [
+    material,
+  ]);
+  await exec(
+    `INSERT INTO smpg_price_meta
+       (material, target_price, strength, start_at, end_at, state, price_before, created_by)
+     VALUES (?, ?, ?, NOW(), NOW() + INTERVAL ? MINUTE, 'PENDING', ?, ?)`,
+    [material, targetPrice, strength, Math.max(1, Math.round(hours * 60)), carryOver, createdBy]
+  );
+}
+
+/**
+ * Beendet eine laufende Meta vorzeitig. Eine aktive geht in die Rückkehr-Phase
+ * (der Preis wandert genauso schnell zurück), eine noch wartende wird verworfen.
+ */
+export async function stopItemMeta(material: string): Promise<void> {
+  await exec(`UPDATE smpg_price_meta SET state = 'DONE' WHERE material = ? AND state = 'PENDING'`, [
+    material,
+  ]);
+  await exec(
+    `UPDATE smpg_price_meta SET state = 'COOLDOWN', end_at = NOW()
+     WHERE material = ? AND state = 'ACTIVE'`,
+    [material]
+  );
 }
 
 // ─── Marktpreis-Verlauf (Auktionshaus + Orders) ────────────────────────────

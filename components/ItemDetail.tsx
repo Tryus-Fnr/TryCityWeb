@@ -10,6 +10,7 @@ import {
   ComposedChart,
   BarChart,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -17,6 +18,18 @@ import {
   YAxis,
 } from "recharts";
 import { formatMaterialName, formatMoney, formatTs } from "@/lib/format";
+
+type Meta = {
+  id: number;
+  material: string;
+  targetPrice: number;
+  strength: number; // 0..1
+  startAt: string;
+  endAt: string;
+  state: "PENDING" | "ACTIVE" | "COOLDOWN" | "DONE";
+  priceBefore: number | null;
+  createdBy: string;
+};
 
 type Detail = {
   ok: boolean;
@@ -31,7 +44,18 @@ type Detail = {
   } | null;
   history: { ts: string; price: number; sold: number }[];
   changes: { changedAt: string; startValue: number; currentPrice: number }[];
+  meta: Meta | null;
+  metaHistory: Meta[];
 };
+
+const META_STATE_TEXT: Record<Meta["state"], string> = {
+  PENDING: "wartet auf den nächsten Lauf",
+  ACTIVE: "aktiv",
+  COOLDOWN: "läuft aus",
+  DONE: "beendet",
+};
+
+const META_COLOR = "#f472b6";
 
 type MarketPoint = {
   day: string;
@@ -75,7 +99,13 @@ const RANGES = [
   { key: "all", label: "Alles" },
 ] as const;
 
-export default function ItemDetail({ material }: { material: string }) {
+export default function ItemDetail({
+  material,
+  isAdmin = false,
+}: {
+  material: string;
+  isAdmin?: boolean;
+}) {
   const [range, setRange] = useState<string>("14d");
   const [data, setData] = useState<Detail | null>(null);
   const [market, setMarket] = useState<MarketPoint[]>([]);
@@ -84,6 +114,7 @@ export default function ItemDetail({ material }: { material: string }) {
   // Jede Serie auf ihrer eigenen Y-Achse. Nötig, weil ein Shoppreis von $0,01 neben
   // einem Auktionsschnitt von $500 auf einer gemeinsamen Achse eine flache Linie wäre.
   const [splitScales, setSplitScales] = useState(true);
+  const [showTurns, setShowTurns] = useState(true);
 
   const load = useCallback(
     async (r: string) => {
@@ -145,10 +176,42 @@ export default function ItemDetail({ material }: { material: string }) {
     });
   };
 
+  /**
+   * Wendepunkte des Shoppreises: Stellen, an denen die Kurve die Richtung
+   * wechselt. Flache Stücke werden übersprungen, sonst würde jede Pause als
+   * Wende zählen.
+   */
+  const turningIdx = useMemo(() => {
+    const set = new Set<number>();
+    let prevDir = 0;
+    for (let i = 1; i < merged.length; i++) {
+      const d = merged[i].price - merged[i - 1].price;
+      if (Math.abs(d) < 1e-9) continue;
+      const dir = d > 0 ? 1 : -1;
+      if (prevDir !== 0 && dir !== prevDir) set.add(i - 1);
+      prevDir = dir;
+    }
+    return set;
+  }, [merged]);
+
   const name = formatMaterialName(material);
   const firstTs = data?.history[0]?.ts ?? null;
+  const lastTs = data?.history[data.history.length - 1]?.ts ?? null;
   const visibleChanges =
     data?.changes.filter((c) => firstTs !== null && c.changedAt >= firstTs) ?? [];
+
+  /** Metas als schattierte Bänder im Graphen – laufende und bereits beendete. */
+  const metaBands = useMemo(() => {
+    if (!data?.history?.length || firstTs === null || lastTs === null) return [];
+    const all = [...(data.metaHistory ?? []), ...(data.meta ? [data.meta] : [])];
+    return all
+      .filter((m) => m.endAt >= firstTs && m.startAt <= lastTs)
+      .map((m) => ({
+        meta: m,
+        x1: nearestTs(data.history, m.startAt < firstTs ? firstTs : m.startAt),
+        x2: nearestTs(data.history, m.endAt > lastTs ? lastTs : m.endAt),
+      }));
+  }, [data?.history, data?.meta, data?.metaHistory, firstTs, lastTs]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -175,6 +238,45 @@ export default function ItemDetail({ material }: { material: string }) {
           </div>
         </div>
       </div>
+
+      {/* Laufende Meta – für alle sichtbar */}
+      {data?.meta && (
+        <div
+          className="rounded-2xl border p-4"
+          style={{ borderColor: META_COLOR + "40", background: META_COLOR + "12" }}
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className="rounded-full px-2.5 py-0.5 text-xs font-bold tracking-wide"
+              style={{ background: META_COLOR + "26", color: META_COLOR }}
+            >
+              META
+            </span>
+            <span className="font-semibold" style={{ color: META_COLOR }}>
+              Zielpreis ${formatMoney(data.meta.targetPrice)}
+            </span>
+            <span className="text-sm text-neutral-400">
+              Stärke {Math.round(data.meta.strength * 100)} % ·{" "}
+              {META_STATE_TEXT[data.meta.state]} · bis {formatTs(data.meta.endAt)}
+            </span>
+          </div>
+          <p className="mt-1.5 text-xs text-neutral-500">
+            Metas heben den Verkaufspreis befristet an. Sie greifen beim nächsten
+            Anpassungslauf (00:00 bzw. 12:00), danach geht der Preis genauso schnell
+            wieder zurück.
+          </p>
+        </div>
+      )}
+
+      {/* Meta verwalten – nur für Admins */}
+      {isAdmin && (
+        <MetaEditor
+          material={material}
+          meta={data?.meta ?? null}
+          currentPrice={data?.currentPrice ?? null}
+          onChanged={() => load(range)}
+        />
+      )}
 
       {/* Einstellungen */}
       {data?.settings && (
@@ -222,6 +324,17 @@ export default function ItemDetail({ material }: { material: string }) {
               }`}
             >
               Eigene Skala je Serie
+            </button>
+            <button
+              onClick={() => setShowTurns((v) => !v)}
+              title="Markiert die Stellen, an denen der Shoppreis die Richtung wechselt."
+              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                showTurns
+                  ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                  : "border-white/10 text-neutral-400 hover:bg-white/5"
+              }`}
+            >
+              Wendepunkte
             </button>
             <span className="text-xs text-neutral-600">Legende anklicken zum Ein-/Ausblenden</span>
           </div>
@@ -323,6 +436,20 @@ export default function ItemDetail({ material }: { material: string }) {
                   }}
                   filterNull
                 />
+                {/* Meta-Zeiträume als schattiertes Band */}
+                {metaBands.map((b) => (
+                  <ReferenceArea
+                    key={`meta-${b.meta.id}`}
+                    yAxisId={primaryAxisId}
+                    x1={b.x1}
+                    x2={b.x2}
+                    fill={META_COLOR}
+                    fillOpacity={0.12}
+                    stroke={META_COLOR}
+                    strokeOpacity={0.35}
+                    label={{ value: "Meta", fill: META_COLOR, fontSize: 10, position: "insideTop" }}
+                  />
+                ))}
                 {/* Admin-Änderungsmarker */}
                 {visibleChanges.map((c, i) => (
                   <ReferenceLine
@@ -343,7 +470,37 @@ export default function ItemDetail({ material }: { material: string }) {
                   strokeWidth={hidden.has("price") ? 0 : 2}
                   fill={hidden.has("price") ? "none" : "url(#grad-price)"}
                   hide={hidden.has("price")}
-                  dot={false}
+                  dot={
+                    showTurns && !hidden.has("price")
+                      ? (props: {
+                          cx?: number;
+                          cy?: number;
+                          index?: number;
+                          key?: React.Key | null;
+                        }) => {
+                          const { cx, cy, index, key } = props;
+                          if (
+                            cx === undefined ||
+                            cy === undefined ||
+                            index === undefined ||
+                            !turningIdx.has(index)
+                          ) {
+                            return <g key={key} />;
+                          }
+                          return (
+                            <circle
+                              key={key}
+                              cx={cx}
+                              cy={cy}
+                              r={3.5}
+                              fill="#0a0a0a"
+                              stroke="#34d399"
+                              strokeWidth={1.8}
+                            />
+                          );
+                        }
+                      : false
+                  }
                   legendType="none"
                 />
                 {/* Ø Auktionshaus */}
@@ -424,6 +581,162 @@ function nearestTs(history: { ts: string }[], target: string): string {
     else break;
   }
   return best;
+}
+
+/**
+ * Meta setzen und beenden – nur für Admins sichtbar.
+ *
+ * Geschrieben wird nur die Meta selbst, nie der Preis. Den setzt das
+ * Minecraft-Netzwerk beim nächsten Anpassungslauf. Die Grenzen sind dieselben
+ * wie ingame bei /dynprice meta.
+ */
+function MetaEditor({
+  material,
+  meta,
+  currentPrice,
+  onChanged,
+}: {
+  material: string;
+  meta: Meta | null;
+  currentPrice: number | null;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState("");
+  const [strength, setStrength] = useState("100");
+  const [hours, setHours] = useState("48");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Vorbelegung: laufende Meta, sonst doppelter aktueller Preis.
+  useEffect(() => {
+    if (meta) {
+      setTarget(String(meta.targetPrice));
+      setStrength(String(Math.round(meta.strength * 100)));
+    } else if (currentPrice !== null) {
+      setTarget(String(Math.round(currentPrice * 2 * 10000) / 10000));
+    }
+  }, [meta, currentPrice]);
+
+  async function send(method: "POST" | "DELETE") {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/items/${material}/meta`, {
+        method,
+        headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+        body:
+          method === "POST"
+            ? JSON.stringify({
+                targetPrice: Number(target.replace(",", ".")),
+                strength: Number(strength.replace(",", ".")),
+                hours: Number(hours.replace(",", ".")),
+              })
+            : undefined,
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setError(json.error ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setOpen(false);
+      onChanged();
+    } catch {
+      setError("Server nicht erreichbar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium text-neutral-300">Meta verwalten</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Befristete Preis-Anhebung. Greift beim nächsten Anpassungslauf, nicht sofort.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {meta && (
+            <button
+              onClick={() => send("DELETE")}
+              disabled={busy}
+              className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+            >
+              Meta beenden
+            </button>
+          )}
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:bg-white/5"
+          >
+            {open ? "Schließen" : meta ? "Meta ersetzen" : "Meta setzen"}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetaField
+              label="Zielpreis ($)"
+              value={target}
+              onChange={setTarget}
+              hint={currentPrice !== null ? `aktuell $${formatMoney(currentPrice)}` : undefined}
+            />
+            <MetaField
+              label="Stärke (%)"
+              value={strength}
+              onChange={setStrength}
+              hint="100 % = voller Sprung beim nächsten Lauf"
+            />
+            <MetaField
+              label="Laufzeit (Stunden)"
+              value={hours}
+              onChange={setHours}
+              hint="danach geht der Preis zurück"
+            />
+          </div>
+          {error && <div className="text-sm text-red-400">{error}</div>}
+          <div>
+            <button
+              onClick={() => send("POST")}
+              disabled={busy}
+              className="rounded-lg bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
+            >
+              {busy ? "Speichert…" : "Meta setzen"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetaField({
+  label,
+  value,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  hint?: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-neutral-400">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        inputMode="decimal"
+        className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-400/50"
+      />
+      {hint && <span className="text-[11px] text-neutral-600">{hint}</span>}
+    </label>
+  );
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {
