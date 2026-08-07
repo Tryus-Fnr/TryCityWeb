@@ -1,6 +1,20 @@
 #!/bin/bash
 # ============================================================
-#  TryCity Website – Update-Script
+#  TryCity Website – Build AUF DEM SERVER (Notnagel)
+#
+#  ►►► Der normale Weg ist update.sh, nicht dieses Script. ◄◄◄
+#
+#  Gebaut wird bei jedem Push von GitHub Actions
+#  (.github/workflows/build.yml); der Server holt sich nur das
+#  fertige Ergebnis:
+#      cd /opt/trycityweb && git pull && ./update.sh
+#
+#  Dieses Script hier baut auf dem Server selbst. Das braucht es
+#  nur noch, wenn GitHub mal nicht erreichbar ist. Es ist inzwischen
+#  abgesichert (siehe unten), bleibt auf dieser Maschine aber die
+#  schlechtere Wahl: mit rund 21 von 23 GB in den Minecraft-JVMs ist
+#  praktisch nie genug Speicher für einen Build frei.
+#
 #  Ausführen auf dem Server als root:
 #    chmod +x /opt/trycityweb/deploy.sh   (einmalig)
 #    /opt/trycityweb/deploy.sh

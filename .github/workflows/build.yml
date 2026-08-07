@@ -1,0 +1,98 @@
+name: Build
+
+# Baut die Website bei jedem Push auf master und hängt das Ergebnis als
+# Release-Archiv an. Der Server lädt nur noch dieses Archiv herunter und
+# startet neu – er baut nichts mehr selbst.
+#
+# Hintergrund: auf dem Server laufen daneben CloudNet, MariaDB und mehrere
+# Minecraft-Server. Die belegen rund 21 von 23 GB. Ein "next build" dort hat
+# jedes Mal die ganze Maschine ins Swappen getrieben und damit auch die
+# Minecraft-Server eingefroren.
+#
+# Gebaut wird auf ubuntu-latest, also derselben Plattform wie der Server –
+# deshalb können die node_modules mitgeliefert werden und auf dem Server muss
+# kein einziges npm-Kommando laufen.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Läuft immer nur ein Build; ein neuer Push bricht den vorherigen ab.
+concurrency:
+  group: build-master
+  cancel-in-progress: true
+
+permissions:
+  contents: write # nötig, um das Release anzulegen
+
+env:
+  NODE_VERSION: "22"
+  RELEASE_TAG: deploy-latest
+  ARTIFACT: trycityweb-build.tar.gz
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Bauen
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: Entwicklungs-Abhängigkeiten entfernen
+        # Zum Laufen braucht "next start" nur die Produktions-Abhängigkeiten.
+        # Das halbiert das Archiv und spart dem Server Platz.
+        run: npm prune --omit=dev
+
+      - name: Bauinfo schreiben
+        run: |
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "ref=${GITHUB_REF_NAME}"
+            echo "built=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "node=$(node -v)"
+            echo "run=${GITHUB_RUN_NUMBER}"
+          } > BUILD_INFO
+
+      - name: Archiv packen
+        # Nur was zum Laufen gebraucht wird. Quellcode und public/ holt sich der
+        # Server über git pull, die ändern sich im selben Commit mit.
+        run: |
+          tar -czf "${ARTIFACT}" .next node_modules BUILD_INFO
+          ls -lh "${ARTIFACT}"
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Rollendes Release: altes weg, neues hin. Dadurch bleibt die
+          # Download-Adresse für den Server immer dieselbe.
+          gh release delete "${RELEASE_TAG}" --cleanup-tag --yes || true
+          gh release create "${RELEASE_TAG}" "${ARTIFACT}" \
+            --title "Letzter Build" \
+            --notes "Commit ${GITHUB_SHA:0:7} · Lauf #${GITHUB_RUN_NUMBER} · $(date -u +%d.%m.%Y\ %H:%M) UTC"
+
+      - name: Zusammenfassung
+        run: |
+          {
+            echo "### Build fertig"
+            echo ""
+            echo "Auf dem Server einspielen mit:"
+            echo ""
+            echo '```bash'
+            echo 'cd /opt/trycityweb && git pull && ./update.sh'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

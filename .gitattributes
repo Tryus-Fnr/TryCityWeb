@@ -1,0 +1,6 @@
+# Shell-Scripts und Workflows MÜSSEN Unix-Zeilenenden behalten.
+# Mit Windows-Zeilenenden scheitert ein Script auf dem Server sofort mit
+# "bad interpreter: /bin/bash^M" – und das sieht man der Datei nicht an.
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
