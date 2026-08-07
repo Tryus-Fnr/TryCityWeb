@@ -367,15 +367,40 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const json = await res.json();
+
+      // Antwort erst als Text lesen: bei einem Fehler außerhalb der Route
+      // (oder wenn ein Proxy die Anfrage abweist) kommt HTML statt JSON zurück.
+      // res.json() wäre dann selbst gescheitert und hätte die eigentliche
+      // Ursache hinter einem "Server nicht erreichbar" versteckt.
+      const raw = await res.text();
+      let json: { ok?: boolean; error?: string } | null = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        /* kein JSON – unten wird der Rohtext gezeigt */
+      }
+
+      if (json === null) {
+        const kurz = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+        setError(
+          `Der Server hat mit HTTP ${res.status} geantwortet, aber ohne verwertbare Fehlermeldung. ` +
+            (kurz ? `Antwort: ${kurz}` : "Die Antwort war leer.") +
+            " · Genaueres steht im Server-Log: journalctl -u trycityweb -n 80 --no-pager"
+        );
+        return;
+      }
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Speichern fehlgeschlagen.");
+        setError(json.error ?? `Speichern fehlgeschlagen (HTTP ${res.status}).`);
         return;
       }
       router.push("/admin/news");
       router.refresh();
-    } catch {
-      setError("Der Server ist gerade nicht erreichbar.");
+    } catch (e) {
+      setError(
+        "Die Anfrage kam nicht durch: " +
+          (e instanceof Error ? e.message : String(e)) +
+          ". Bei großen Bildern kann sie auch am Webserver hängenbleiben."
+      );
     } finally {
       setSaving(false);
     }
