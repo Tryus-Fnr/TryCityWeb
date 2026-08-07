@@ -3,11 +3,13 @@
 #  TryCity Website – Einspielen eines fertigen Builds
 #
 #  Auf dem Server als root:
-#    cd /opt/trycityweb && git pull && ./update.sh
+#    /opt/trycityweb/update.sh
+#
+#  Das Script holt den Quellstand selbst (git pull) und lädt dann
+#  das fertige Archiv. Ein eigenes "git pull" davor braucht es nicht.
 #
 #  Gebaut wird NICHT hier, sondern von GitHub Actions bei jedem
-#  Push auf master (.github/workflows/build.yml). Dieses Script
-#  lädt nur das fertige Archiv, tauscht es ein und startet neu.
+#  Push auf master (.github/workflows/build.yml).
 #
 #  Warum: auf dieser Maschine laufen CloudNet, MariaDB und mehrere
 #  Minecraft-Server. Die belegen rund 21 von 23 GB. Ein "next build"
@@ -18,6 +20,12 @@
 #  Geht doch mal etwas schief, wird der vorherige Stand automatisch
 #  zurückgeholt.
 # ============================================================
+
+# Der gesamte Rumpf steht in geschweiften Klammern, damit Bash ihn
+# VOLLSTÄNDIG einliest, bevor die erste Zeile ausgeführt wird. Sonst
+# läse Bash nach dem "git pull" weiter an derselben Byte-Position in
+# einer inzwischen ausgetauschten Datei und führte Bruchstücke aus.
+{
 
 set -euo pipefail
 
@@ -41,6 +49,26 @@ echo "╚═══════════════════════�
 echo ""
 
 cd "$APP_DIR"
+
+# ── 0. Quellstand holen ─────────────────────────────────────────
+# Aus git kommen Quellcode, public/ und die Scripts selbst; aus dem
+# Release-Archiv nur .next und node_modules.
+if [ -d .git ]; then
+  SELF_BEFORE="$(sha1sum "$0" 2>/dev/null | cut -d' ' -f1 || true)"
+  echo "▶  git pull..."
+  if ! git pull --ff-only; then
+    echo ""
+    echo "❌  git pull ist fehlgeschlagen."
+    echo "    Meist liegen lokale Änderungen im Weg:  git status"
+    echo "    Verwerfen mit:  git checkout -- <datei>"
+    exit 1
+  fi
+  SELF_AFTER="$(sha1sum "$0" 2>/dev/null | cut -d' ' -f1 || true)"
+  if [ -n "$SELF_BEFORE" ] && [ "$SELF_BEFORE" != "$SELF_AFTER" ]; then
+    echo "ℹ  update.sh wurde erneuert – dieser Lauf nutzt noch die alte Fassung,"
+    echo "   ab dem nächsten Mal die neue."
+  fi
+fi
 
 # Temporärverzeichnis bewusst INNERHALB von APP_DIR: nur dann liegen alt und
 # neu auf demselben Dateisystem und "mv" ist ein Umhängen statt eines
@@ -168,3 +196,6 @@ echo "✅  Fertig. Website läuft."
 curl -s -o /dev/null -w "   HTTP-Status: %{http_code}\n" "$HEALTH_URL"
 echo "   Verfügbarer Speicher: $(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo) MB"
 echo ""
+
+exit 0
+}   # Ende des vorab eingelesenen Rumpfs – siehe Kopf der Datei

@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `smpg_news_images` (
 -- ============================================================================
 -- Eigener MySQL-User für die Website:
 --  - SELECT auf alles (Statistiken, Preise, Historie)
---  - Schreiben NUR auf die Login-Code- und die Neuigkeiten-Tabellen
+--  - Schreiben nur auf die Tabellen, die der Admin-Bereich wirklich pflegt
 -- ============================================================================
 CREATE USER IF NOT EXISTS 'trycity_web'@'localhost' IDENTIFIED BY '<PASSWORT>';
 
@@ -72,6 +72,18 @@ GRANT SELECT, INSERT, UPDATE ON `<DATENBANK>`.`smpg_web_login_codes` TO 'trycity
 -- Neuigkeiten werden ausschließlich über den Admin-Bereich gepflegt.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news` TO 'trycity_web'@'localhost';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_images` TO 'trycity_web'@'localhost';
+
+-- Preis-Verwaltung im Admin-Bereich: dauerhafte Einstellungen und Metas.
+-- Bewusst ohne DELETE – aus dem Web wird nichts gelöscht, nur geändert und
+-- ergänzt. Der Zähler in smpg_shop_meta sorgt dafür, dass die Minecraft-Server
+-- die neuen Werte binnen 20 Sekunden übernehmen.
+GRANT UPDATE         ON `<DATENBANK>`.`smpg_dynamic_prices`    TO 'trycity_web'@'localhost';
+GRANT INSERT, UPDATE ON `<DATENBANK>`.`smpg_sell_prices`       TO 'trycity_web'@'localhost';
+GRANT INSERT         ON `<DATENBANK>`.`smpg_dynamic_price_log` TO 'trycity_web'@'localhost';
+GRANT INSERT, UPDATE ON `<DATENBANK>`.`smpg_price_meta`        TO 'trycity_web'@'localhost';
+GRANT UPDATE         ON `<DATENBANK>`.`smpg_shop_meta`         TO 'trycity_web'@'localhost';
+
+FLUSH PRIVILEGES;
 
 -- ============================================================================
 -- Mod-Panel: Die SELECT-Berechtigung auf alle Tabellen reicht bereits aus.

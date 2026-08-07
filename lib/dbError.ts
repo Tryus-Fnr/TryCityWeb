@@ -6,24 +6,43 @@
  * bei fehlender Tabelle oder fehlendem GRANT, die man sonst nur im
  * Server-Log sieht.
  */
+/**
+ * Fischt den Tabellennamen aus der MySQL-Meldung.
+ *
+ * „… for table `cloud`.`smpg_dynamic_prices`" → smpg_dynamic_prices
+ * „Table 'cloud.smpg_news' doesn't exist"     → smpg_news
+ *
+ * Ohne das nannte die Meldung fest verdrahtet die Neuigkeiten-Tabellen, egal
+ * woran es tatsächlich lag – und man sucht an der falschen Stelle.
+ */
+function tableFrom(detail: string): string | null {
+  return (
+    detail.match(/for table `[^`]+`\.`([^`]+)`/)?.[1] ??
+    detail.match(/Table '(?:[^'.]+\.)?([^']+)' doesn't exist/)?.[1] ??
+    null
+  );
+}
+
 export function describeDbError(e: unknown): string {
   const err = e as { code?: string; errno?: number; sqlMessage?: string; message?: string };
   const code = err?.code ?? "";
   const detail = err?.sqlMessage ?? err?.message ?? String(e);
+  const table = tableFrom(detail);
 
   switch (code) {
     case "ER_NO_SUCH_TABLE":
       return (
-        "Die Neuigkeiten-Tabellen fehlen in der Datenbank. " +
-        "Führe setup.sql aus (Abschnitt smpg_news / smpg_news_images). " +
+        `Die Tabelle ${table ? `\`${table}\`` : "dazu"} gibt es in der Datenbank nicht. ` +
+        "Führe setup.sql aus. " +
         `[${code}] ${detail}`
       );
     case "ER_TABLEACCESS_DENIED_ERROR":
     case "ER_ACCESS_DENIED_ERROR":
     case "ER_DBACCESS_DENIED_ERROR":
       return (
-        "Der Datenbank-Benutzer der Website darf hier nicht schreiben. " +
-        "Die GRANT-Zeilen für smpg_news und smpg_news_images aus setup.sql fehlen. " +
+        "Der Datenbank-Benutzer der Website darf hier nicht schreiben" +
+        (table ? ` (Tabelle \`${table}\`)` : "") +
+        ". Die passende GRANT-Zeile aus setup.sql fehlt; danach FLUSH PRIVILEGES nicht vergessen. " +
         `[${code}] ${detail}`
       );
     case "ER_DATA_TOO_LONG":
