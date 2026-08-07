@@ -268,14 +268,22 @@ export default function ItemDetail({
         </div>
       )}
 
-      {/* Meta verwalten – nur für Admins */}
+      {/* Admin-Bedienfelder */}
       {isAdmin && (
-        <MetaEditor
-          material={material}
-          meta={data?.meta ?? null}
-          currentPrice={data?.currentPrice ?? null}
-          onChanged={() => load(range)}
-        />
+        <div className="flex flex-col gap-4">
+          <SettingsEditor
+            material={material}
+            settings={data?.settings ?? null}
+            currentPrice={data?.currentPrice ?? null}
+            onChanged={() => load(range)}
+          />
+          <MetaEditor
+            material={material}
+            meta={data?.meta ?? null}
+            currentPrice={data?.currentPrice ?? null}
+            onChanged={() => load(range)}
+          />
+        </div>
       )}
 
       {/* Einstellungen */}
@@ -581,6 +589,150 @@ function nearestTs(history: { ts: string }[], target: string): string {
     else break;
   }
   return best;
+}
+
+/**
+ * Dauerhafte Preis-Einstellungen – nur für Admins sichtbar.
+ *
+ * Im Gegensatz zur Meta ist das keine befristete Anhebung, sondern der Rahmen,
+ * in dem sich der Preis von selbst bewegt: StartWert (das Ziel der Rückholfeder)
+ * sowie Unter- und Obergrenze. Der aktuelle Preis lässt sich optional gleich
+ * mitsetzen.
+ *
+ * Verkaufszähler und Beobachtungszeitraum bleiben dabei unangetastet – eine
+ * Änderung hier wirft die Marktbeobachtung also nicht weg.
+ */
+function SettingsEditor({
+  material,
+  settings,
+  currentPrice,
+  onChanged,
+}: {
+  material: string;
+  settings: Detail["settings"];
+  currentPrice: number | null;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [start, setStart] = useState("");
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+  const [price, setPrice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!settings) return;
+    setStart(String(settings.startValue));
+    setMin(String(settings.minPrice));
+    setMax(String(settings.maxPrice));
+    setPrice(currentPrice !== null ? String(currentPrice) : "");
+  }, [settings, currentPrice]);
+
+  const n = (v: string) => Number(v.replace(",", "."));
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    setDone(false);
+    try {
+      const res = await fetch(`/api/items/${material}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startValue: n(start),
+          minPrice: n(min),
+          maxPrice: n(max),
+          currentPrice: price.trim() === "" ? null : n(price),
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setError(json.error ?? "Das hat nicht geklappt.");
+        return;
+      }
+      setDone(true);
+      setOpen(false);
+      onChanged();
+    } catch {
+      setError("Server nicht erreichbar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!settings) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <h2 className="text-sm font-medium text-neutral-300">Preis-Einstellungen</h2>
+        <p className="mt-0.5 text-xs text-neutral-500">
+          Dieses Item ist nicht im dynamischen Preissystem. Ingame aufnehmen mit{" "}
+          <code className="rounded bg-black/40 px-1 py-0.5 font-mono">
+            /dynprice {material}
+          </code>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-medium text-neutral-300">Preis-Einstellungen</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Der Rahmen, in dem sich der Preis von selbst bewegt. Gilt dauerhaft, nicht befristet.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {done && !open && <span className="text-xs text-emerald-400">Gespeichert</span>}
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:bg-white/5"
+          >
+            {open ? "Schließen" : "Bearbeiten"}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <MetaField
+              label="StartWert ($)"
+              value={start}
+              onChange={setStart}
+              hint="dorthin zieht der Preis zurück"
+            />
+            <MetaField label="Untergrenze ($)" value={min} onChange={setMin} hint="tiefer geht es nie" />
+            <MetaField label="Obergrenze ($)" value={max} onChange={setMax} hint="höher geht es nie" />
+            <MetaField
+              label="Aktueller Preis ($)"
+              value={price}
+              onChange={setPrice}
+              hint="leer lassen = nicht ändern"
+            />
+          </div>
+          {error && <div className="text-sm text-red-400">{error}</div>}
+          <p className="text-[11px] text-neutral-600">
+            Die Verkaufszähler und der Beobachtungszeitraum bleiben erhalten – eine Änderung hier
+            wirft die Marktbeobachtung nicht weg. Die Server übernehmen sie binnen 20 Sekunden.
+          </p>
+          <div>
+            <button
+              onClick={save}
+              disabled={busy}
+              className="rounded-lg bg-emerald-500/15 px-4 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
+            >
+              {busy ? "Speichert…" : "Speichern"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**

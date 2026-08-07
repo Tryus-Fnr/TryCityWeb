@@ -243,6 +243,7 @@ export async function createItemMeta(
      VALUES (?, ?, ?, NOW(), NOW() + INTERVAL ? MINUTE, 'PENDING', ?, ?)`,
     [material, targetPrice, strength, Math.max(1, Math.round(hours * 60)), carryOver, createdBy]
   );
+  await bumpShopCacheVersion();
 }
 
 /**
@@ -258,6 +259,98 @@ export async function stopItemMeta(material: string): Promise<void> {
      WHERE material = ? AND state = 'ACTIVE'`,
     [material]
   );
+}
+
+// ─── Preis-Einstellungen eines Items ───────────────────────────────────────
+
+/**
+ * Zählt den Änderungszähler hoch, den die Minecraft-Server im Auge behalten.
+ * Ohne das würde eine hier geänderte Zahl erst beim nächsten Anpassungslauf
+ * ingame ankommen – also womöglich erst zwölf Stunden später.
+ */
+async function bumpShopCacheVersion(): Promise<void> {
+  await exec(
+    `UPDATE smpg_shop_meta SET meta_value = CAST(meta_value AS UNSIGNED) + 1
+     WHERE meta_key = 'shop_cache_version'`
+  );
+}
+
+/**
+ * Ändert StartWert, Unter-/Obergrenze und optional den aktuellen Verkaufspreis.
+ *
+ * Bewusst NICHT angefasst werden `sold_current` und `reset_at`: früher galt jede
+ * Änderung als Neuanfang und hat die Volumen-Durchschnitte weggeworfen – genau
+ * daran sind die Preise vorher ständig umgekippt.
+ *
+ * Die Änderung landet zusätzlich im Protokoll, damit sie als Marker im Graphen
+ * auftaucht. Die Alt-Spalten (trend_days, intensity, …) werden dabei
+ * unverändert durchgereicht; die neue Rechnung liest sie nicht mehr, sie sind
+ * in der Protokolltabelle aber Pflichtfelder.
+ *
+ * @returns false, wenn es das Item nicht im dynamischen Preissystem gibt
+ */
+export async function updateItemSettings(
+  material: string,
+  startValue: number,
+  minPrice: number,
+  maxPrice: number,
+  currentPrice: number | null
+): Promise<boolean> {
+  const rows = await query<{
+    trend_days: number;
+    intensity: string;
+    trend_weight: string;
+    gravity: string;
+  }>(
+    `SELECT trend_days, intensity, trend_weight, gravity
+     FROM smpg_dynamic_prices WHERE material = ? LIMIT 1`,
+    [material]
+  );
+  if (rows.length === 0) return false;
+  const legacy = rows[0];
+
+  await exec(
+    `UPDATE smpg_dynamic_prices
+        SET start_value = ?, min_price = ?, max_price = ?
+      WHERE material = ?`,
+    [startValue, minPrice, maxPrice, material]
+  );
+
+  if (currentPrice !== null) {
+    await exec(
+      `INSERT INTO smpg_sell_prices (material, sell_price) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE sell_price = VALUES(sell_price)`,
+      [material, currentPrice]
+    );
+  }
+
+  const priceForLog =
+    currentPrice ??
+    (await query<{ sell_price: string }>(
+      `SELECT sell_price FROM smpg_sell_prices WHERE material = ? LIMIT 1`,
+      [material]
+    ).then((r) => (r.length > 0 ? Number(r[0].sell_price) : startValue)));
+
+  await exec(
+    `INSERT INTO smpg_dynamic_price_log
+       (material, changed_at, start_value, min_price, max_price,
+        trend_days, intensity, trend_weight, gravity, current_price)
+     VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      material,
+      startValue,
+      minPrice,
+      maxPrice,
+      legacy.trend_days,
+      legacy.intensity,
+      legacy.trend_weight,
+      legacy.gravity,
+      priceForLog,
+    ]
+  );
+
+  await bumpShopCacheVersion();
+  return true;
 }
 
 // ─── Marktpreis-Verlauf (Auktionshaus + Orders) ────────────────────────────

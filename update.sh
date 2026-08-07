@@ -140,12 +140,17 @@ if ! systemctl restart "$SERVICE"; then
   exit 1
 fi
 
-echo "▶  Warte auf Antwort..."
+# Next braucht nach dem Neustart ein paar Sekunden, bis Port 3000 offen ist.
+# curl-Meldungen dabei unterdrücken – die ersten Fehlschläge sind normal und
+# sahen bisher aus, als wäre etwas kaputt.
+printf "▶  Warte auf Antwort"
 OK=false
-for _ in $(seq 1 20); do
-  if curl -fsS -o /dev/null --max-time 3 "$HEALTH_URL"; then OK=true; break; fi
+for _ in $(seq 1 30); do
+  if curl -fsS -o /dev/null --max-time 3 "$HEALTH_URL" 2>/dev/null; then OK=true; break; fi
+  printf "."
   sleep 1
 done
+echo ""
 
 if [ "$OK" != true ]; then
   echo ""
