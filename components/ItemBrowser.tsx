@@ -30,6 +30,9 @@ const SORTS = [
 
 const PAGE_SIZE = 50;
 
+/** Angezeigter Name: deutsch, wenn vorhanden – sonst der englische aus dem Material. */
+const nameOf = (i: Item) => i.de || formatMaterialName(i.material);
+
 export default function ItemBrowser() {
   const [items, setItems] = useState<Item[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +83,12 @@ export default function ItemBrowser() {
       case "price-desc": list.sort((a, b) => b.price - a.price); break;
       case "price-asc":  list.sort((a, b) => a.price - b.price); break;
       case "change":     list.sort((a, b) => changeOf(b) - changeOf(a)); break;
-      case "name":       list.sort((a, b) => formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))); break;
+      case "name":       list.sort((a, b) => nameOf(a).localeCompare(nameOf(b), "de")); break;
       // Bei gleicher Stückzahl (z.B. beide 0) nach Namen – sonst springt die
       // Reihenfolge bei jedem Neuladen, weil sort() dort nichts festlegt.
       case "sold48h":    list.sort((a, b) =>
                            ((sold48h[b.material] ?? 0) - (sold48h[a.material] ?? 0)) ||
-                           formatMaterialName(a.material).localeCompare(formatMaterialName(b.material))
+                           nameOf(a).localeCompare(nameOf(b), "de")
                          ); break;
     }
     return list;
@@ -153,8 +156,11 @@ export default function ItemBrowser() {
                 >
                   <div className="flex items-center gap-2.5">
                     <ItemIcon material={item.material} size={28} className="shrink-0" />
-                    <div className="truncate text-sm font-semibold group-hover:text-sky-300">
-                      {formatMaterialName(item.material)}
+                    <div
+                      className="truncate text-sm font-semibold group-hover:text-sky-300"
+                      title={formatMaterialName(item.material)}
+                    >
+                      {item.de || formatMaterialName(item.material)}
                     </div>
                   </div>
                   {spark.length > 1 && <MiniSparkline points={spark} className="mt-3" />}

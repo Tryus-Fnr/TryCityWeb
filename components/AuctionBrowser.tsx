@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import ItemIcon from "@/components/ItemIcon";
 import { formatMaterialName, formatMoney } from "@/lib/format";
+import { buildHaystack, matchesHaystack } from "@/lib/itemNames";
 
 type AuctionRow = {
   id: string;
   sellerName: string;
   itemName: string | null;
   itemMaterial: string;
+  /** Deutscher Item-Name, kommt aus der Schnittstelle mit */
+  de?: string | null;
   category: string;
   listingType: string;
   price: number;
@@ -66,7 +69,8 @@ export default function AuctionBrowser() {
       const q = search.toLowerCase();
       rows = rows.filter(
         (r) =>
-          (r.itemName ?? r.itemMaterial).toLowerCase().includes(q) ||
+          matchesHaystack(buildHaystack(r.itemMaterial, r.de), search) ||
+          (r.itemName ?? "").toLowerCase().includes(q) ||
           r.sellerName.toLowerCase().includes(q)
       );
     }
@@ -154,7 +158,8 @@ export default function AuctionBrowser() {
 
 function AuctionCard({ item }: { item: AuctionRow }) {
   const isAuction = item.listingType === "AUCTION";
-  const displayName = item.itemName ?? formatMaterialName(item.itemMaterial);
+  // Selbst benannte Gegenstände behalten ihren eigenen Namen, sonst deutsch.
+  const displayName = item.itemName ?? item.de ?? formatMaterialName(item.itemMaterial);
   const displayPrice = isAuction
     ? item.currentBid > 0
       ? item.currentBid

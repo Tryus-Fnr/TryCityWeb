@@ -101,9 +101,12 @@ const RANGES = [
 
 export default function ItemDetail({
   material,
+  name: germanName,
   isAdmin = false,
 }: {
   material: string;
+  /** Deutscher Item-Name; ohne Angabe wird der englische aus dem Material gebildet. */
+  name?: string;
   isAdmin?: boolean;
 }) {
   const [range, setRange] = useState<string>("14d");
@@ -197,7 +200,7 @@ export default function ItemDetail({
     return set;
   }, [merged]);
 
-  const name = formatMaterialName(material);
+  const name = germanName || formatMaterialName(material);
   const firstTs = data?.history[0]?.ts ?? null;
   const lastTs = data?.history[data.history.length - 1]?.ts ?? null;
   const visibleChanges =

@@ -1,6 +1,6 @@
 import ItemDetail from "@/components/ItemDetail";
 import { getAdminStatus } from "@/lib/auth";
-import { formatMaterialName } from "@/lib/format";
+import { germanName } from "@/lib/itemNames.server";
 
 export async function generateMetadata({
   params,
@@ -8,7 +8,7 @@ export async function generateMetadata({
   params: Promise<{ material: string }>;
 }) {
   const { material } = await params;
-  return { title: `${formatMaterialName(material)} – Item-Werte – TryCity` };
+  return { title: `${germanName(material.toUpperCase())} – Item-Werte – TryCity` };
 }
 
 export default async function ItemDetailPage({
@@ -18,5 +18,8 @@ export default async function ItemDetailPage({
 }) {
   const { material } = await params;
   const isAdmin = await getAdminStatus();
-  return <ItemDetail material={material.toUpperCase()} isAdmin={isAdmin} />;
+  const mat = material.toUpperCase();
+  // Der deutsche Name kommt vom Server mit: so steht die Überschrift schon beim
+  // ersten Anzeigen richtig da und springt nicht nachträglich um.
+  return <ItemDetail material={mat} name={germanName(mat)} isAdmin={isAdmin} />;
 }

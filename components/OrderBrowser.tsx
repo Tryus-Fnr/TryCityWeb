@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import ItemIcon from "@/components/ItemIcon";
 import { formatMaterialName, formatMoney } from "@/lib/format";
+import { buildHaystack, matchesHaystack } from "@/lib/itemNames";
 
 type OrderRow = {
   id: string;
   ownerName: string;
   material: string;
   itemName: string | null;
+  /** Deutscher Item-Name, kommt aus der Schnittstelle mit */
+  de?: string | null;
   amount: number;
   pricePerItem: number;
   delivered: number;
@@ -42,7 +45,8 @@ export default function OrderBrowser() {
       const q = search.toLowerCase();
       rows = rows.filter(
         (r) =>
-          (r.itemName ?? r.material).toLowerCase().includes(q) ||
+          matchesHaystack(buildHaystack(r.material, r.de), search) ||
+          (r.itemName ?? "").toLowerCase().includes(q) ||
           r.ownerName.toLowerCase().includes(q)
       );
     }
@@ -135,7 +139,8 @@ export default function OrderBrowser() {
 function OrderCard({ order }: { order: OrderRow }) {
   const remaining = order.amount - order.delivered;
   const progress = order.amount > 0 ? (order.delivered / order.amount) * 100 : 0;
-  const displayName = order.itemName ?? formatMaterialName(order.material);
+  // Selbst benannte Gegenstände behalten ihren eigenen Namen, sonst deutsch.
+  const displayName = order.itemName ?? order.de ?? formatMaterialName(order.material);
   const totalCost = order.amount * order.pricePerItem;
   const remainingCost = remaining * order.pricePerItem;
 
