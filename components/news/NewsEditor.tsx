@@ -7,7 +7,13 @@ import {
   ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X,
 } from "lucide-react";
 import { LEGACY_COLORS, LEGACY_COLOR_NAMES, toSmallCaps } from "@/lib/mcformat";
-import { NEWS_TYPES, type NewsPost, type NewsImage, type NewsTypeId } from "@/lib/newsTypes";
+import {
+  LIMITS,
+  NEWS_TYPES,
+  type NewsPost,
+  type NewsImage,
+  type NewsTypeId,
+} from "@/lib/newsTypes";
 import McText from "./McText";
 import {
   collectRange, flattenEditor, makeImageNode, makeStyledNode, mcToNodes, nodesToMc,
@@ -34,7 +40,12 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
   const [type, setType] = useState<NewsTypeId>(post?.type ?? "update");
   const [title, setTitle] = useState(post?.title ?? "");
   const [summary, setSummary] = useState(post?.summary ?? "");
-  const [author, setAuthor] = useState(post?.authorName ?? currentUser);
+  // Mehrere Verfasser; der erste ist der Hauptautor und steht auch ingame da.
+  const [authors, setAuthors] = useState<string[]>(() => {
+    const list = post?.authors?.map((a) => a.name).filter(Boolean) ?? [];
+    if (list.length > 0) return list;
+    return [post?.authorName ?? currentUser];
+  });
   const [published, setPublished] = useState(post?.published ?? true);
   const [pinned, setPinned] = useState(post?.pinned ?? false);
 
@@ -264,7 +275,7 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
       title: title.trim(),
       summary: summary.trim(),
       body,
-      authorName: author.trim(),
+      authorNames: authors.map((a) => a.trim()).filter(Boolean),
       published,
       pinned,
       images: draftImages.map((i) => ({ idx: i.idx, caption: i.caption, data: i.data })),
@@ -349,15 +360,43 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
         </Field>
 
         <Field
-          label="Autor"
-          hint="Darf ein beliebiger Spielername sein – der Beitrag erscheint dann unter diesem Namen."
+          label="Verfasser"
+          hint="Beliebige Spielernamen. Der erste ist der Hauptautor – nur er erscheint ingame, im Web stehen alle."
         >
-          <input
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            maxLength={16}
-            className={inputClass}
-          />
+          <div className="flex flex-col gap-2">
+            {authors.map((name, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={name}
+                  onChange={(e) =>
+                    setAuthors((list) => list.map((v, j) => (j === i ? e.target.value : v)))
+                  }
+                  maxLength={16}
+                  placeholder={i === 0 ? "Hauptautor" : "Weiterer Verfasser"}
+                  className={inputClass}
+                />
+                {authors.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setAuthors((list) => list.filter((_, j) => j !== i))}
+                    aria-label="Verfasser entfernen"
+                    className="shrink-0 rounded-lg border border-white/10 p-2 text-neutral-500 transition-colors hover:bg-white/5 hover:text-red-400"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {authors.length < LIMITS.authors && (
+              <button
+                type="button"
+                onClick={() => setAuthors((list) => [...list, ""])}
+                className="w-fit rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-200"
+              >
+                + Verfasser hinzufügen
+              </button>
+            )}
+          </div>
         </Field>
 
         <Field

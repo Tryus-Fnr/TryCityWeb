@@ -4,6 +4,7 @@ import {
   isNewsType,
   newsType,
   LIMITS,
+  type NewsAuthor,
   type NewsImage,
   type NewsImageInput,
   type NewsInput,
@@ -41,6 +42,7 @@ type Row = {
   published: number;
   pinned: number;
   image_count: number;
+  cover_id: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,17 +56,61 @@ function mapRow(r: Row): NewsPost {
     body: r.body ?? "",
     authorName: r.author_name,
     authorUuid: r.author_uuid,
+    // Wird von attachAuthors() nachgereicht; bis dahin steht hier der
+    // Hauptautor, damit ein Beitrag nie ganz ohne Verfasser dasteht.
+    authors: [{ name: r.author_name, uuid: r.author_uuid }],
     published: Number(r.published) === 1,
     pinned: Number(r.pinned) === 1,
     imageCount: Number(r.image_count ?? 0),
+    coverId: r.cover_id !== null && r.cover_id !== undefined ? Number(r.cover_id) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
 }
 
+/**
+ * Lädt die Verfasser zu mehreren Beiträgen in EINER Abfrage nach.
+ *
+ * Beiträge, die vor der Umstellung entstanden sind, haben keine Zeilen in
+ * `smpg_news_authors` – dort bleibt es beim Hauptautor aus `mapRow`.
+ */
+async function attachAuthors(posts: NewsPost[]): Promise<NewsPost[]> {
+  if (posts.length === 0) return posts;
+  try {
+    const ids = posts.map((p) => p.id);
+    const rows = await query<{ post_id: number; name: string; uuid: string | null }>(
+      `SELECT post_id, name, uuid FROM smpg_news_authors
+       WHERE post_id IN (${ids.map(() => "?").join(",")})
+       ORDER BY post_id ASC, idx ASC`,
+      ids
+    );
+    if (rows.length === 0) return posts;
+    const byPost = new Map<number, NewsAuthor[]>();
+    for (const r of rows) {
+      const list = byPost.get(Number(r.post_id)) ?? [];
+      list.push({ name: r.name, uuid: r.uuid });
+      byPost.set(Number(r.post_id), list);
+    }
+    for (const p of posts) {
+      const list = byPost.get(p.id);
+      if (list && list.length > 0) p.authors = list;
+    }
+    return posts;
+  } catch {
+    // Tabelle fehlt noch (Plugin lief seit dem Update nicht) – Hauptautor reicht.
+    return posts;
+  }
+}
+
+// Die Bilddaten selbst (base64 in LONGTEXT) bleiben hier bewusst außen vor –
+// bei zwölf Beiträgen wären das schnell mehrere Megabyte. Für die Karten wird
+// nur die id des ersten Bildes mitgeladen; ausgeliefert wird es über
+// /api/news/image/<id>.
 const SELECT_POST = `
   SELECT n.*,
-         (SELECT COUNT(*) FROM smpg_news_images i WHERE i.post_id = n.id) AS image_count
+         (SELECT COUNT(*) FROM smpg_news_images i WHERE i.post_id = n.id) AS image_count,
+         (SELECT i2.id FROM smpg_news_images i2 WHERE i2.post_id = n.id
+           ORDER BY i2.idx ASC, i2.id ASC LIMIT 1) AS cover_id
   FROM smpg_news n`;
 
 // ─── Lesen ──────────────────────────────────────────────────────────────────
@@ -84,7 +130,7 @@ export async function loadPublishedNews(limit = 50, type?: string): Promise<News
        LIMIT ${Math.max(1, Math.min(200, Math.floor(limit)))}`,
       params
     );
-    return rows.map(mapRow);
+    return attachAuthors(rows.map(mapRow));
   } catch {
     return [];
   }
@@ -96,7 +142,7 @@ export async function loadAllNews(): Promise<NewsPost[]> {
     const rows = await query<Row>(
       `${SELECT_POST} ORDER BY n.pinned DESC, n.created_at DESC, n.id DESC LIMIT 500`
     );
-    return rows.map(mapRow);
+    return attachAuthors(rows.map(mapRow));
   } catch {
     return [];
   }
@@ -115,7 +161,8 @@ export async function loadNewsPost(
       `${SELECT_POST} WHERE n.id = ?${includeDrafts ? "" : " AND n.published = 1"} LIMIT 1`,
       [id]
     );
-    return rows.length ? mapRow(rows[0]) : null;
+    if (rows.length === 0) return null;
+    return (await attachAuthors([mapRow(rows[0])]))[0];
   } catch {
     return null;
   }
@@ -167,9 +214,30 @@ export async function lookupUuidByName(name: string): Promise<string | null> {
   }
 }
 
+/**
+ * Schlägt zu allen Verfassern die UUID nach.
+ * Leere Namen und Doppelte fliegen raus, die Reihenfolge bleibt.
+ */
+async function resolveAuthors(names: string[]): Promise<NewsAuthor[]> {
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const raw of names) {
+    const name = raw.trim().slice(0, 16);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    clean.push(name);
+    if (clean.length >= LIMITS.authors) break;
+  }
+  return Promise.all(
+    clean.map(async (name) => ({ name, uuid: await lookupUuidByName(name) }))
+  );
+}
+
 /** Legt einen Beitrag samt Bildern an und liefert die neue id. */
 export async function createNewsPost(input: NewsInput): Promise<number> {
-  const uuid = await lookupUuidByName(input.authorName);
+  const authors = await resolveAuthors(input.authorNames);
+  const main = authors[0] ?? { name: "Unbekannt", uuid: null };
   const conn = await db().getConnection();
   try {
     await conn.beginTransaction();
@@ -182,14 +250,15 @@ export async function createNewsPost(input: NewsInput): Promise<number> {
         input.title,
         input.summary,
         input.body,
-        input.authorName,
-        uuid,
+        main.name,
+        main.uuid,
         input.published ? 1 : 0,
         input.pinned ? 1 : 0,
       ]
     );
     const id = (res as { insertId: number }).insertId;
     await insertImages(conn, id, input.images);
+    await insertAuthors(conn, id, authors);
     await conn.commit();
     return id;
   } catch (e) {
@@ -200,9 +269,10 @@ export async function createNewsPost(input: NewsInput): Promise<number> {
   }
 }
 
-/** Aktualisiert einen Beitrag; die Bilder werden komplett ersetzt. */
+/** Aktualisiert einen Beitrag; Bilder und Verfasser werden komplett ersetzt. */
 export async function updateNewsPost(id: number, input: NewsInput): Promise<void> {
-  const uuid = await lookupUuidByName(input.authorName);
+  const authors = await resolveAuthors(input.authorNames);
+  const main = authors[0] ?? { name: "Unbekannt", uuid: null };
   const conn = await db().getConnection();
   try {
     await conn.beginTransaction();
@@ -216,8 +286,8 @@ export async function updateNewsPost(id: number, input: NewsInput): Promise<void
         input.title,
         input.summary,
         input.body,
-        input.authorName,
-        uuid,
+        main.name,
+        main.uuid,
         input.published ? 1 : 0,
         input.pinned ? 1 : 0,
         id,
@@ -225,6 +295,8 @@ export async function updateNewsPost(id: number, input: NewsInput): Promise<void
     );
     await conn.execute(`DELETE FROM smpg_news_images WHERE post_id = ?`, [id]);
     await insertImages(conn, id, input.images);
+    await conn.execute(`DELETE FROM smpg_news_authors WHERE post_id = ?`, [id]);
+    await insertAuthors(conn, id, authors);
     await conn.commit();
   } catch (e) {
     await conn.rollback();
@@ -237,6 +309,19 @@ export async function updateNewsPost(id: number, input: NewsInput): Promise<void
 export async function deleteNewsPost(id: number): Promise<number> {
   // ON DELETE CASCADE räumt smpg_news_images mit ab.
   return exec(`DELETE FROM smpg_news WHERE id = ?`, [id]);
+}
+
+async function insertAuthors(
+  conn: mysql.PoolConnection,
+  postId: number,
+  authors: NewsAuthor[]
+): Promise<void> {
+  for (let i = 0; i < authors.length; i++) {
+    await conn.execute(
+      `INSERT INTO smpg_news_authors (post_id, idx, name, uuid) VALUES (?,?,?,?)`,
+      [postId, i, authors[i].name, authors[i].uuid]
+    );
+  }
 }
 
 async function insertImages(

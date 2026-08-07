@@ -80,7 +80,7 @@ export default function Navbar({ session }: Props) {
     { href: "/", label: "Startseite" },
     { href: "https://shop.trycity.net", label: "Shop", external: true },
     ...MARKT_TABS.map((t) => ({ href: t.href, label: t.label })),
-    { href: "/news", label: "Neuigkeiten" },
+    { href: "/news", label: "Blog" },
     { href: "/regelwerk", label: "Regelwerk" },
     ...(session?.isMod && !session?.isAdmin ? MOD_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
     ...(session?.isAdmin ? [...MOD_TABS.map((t) => ({ href: t.href, label: t.label })), ...ADMIN_TABS.map((t) => ({ href: t.href, label: t.label }))] : []),

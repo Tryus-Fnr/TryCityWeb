@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { isSessionRevoked, loadIsAdmin, loadIsMod } from "@/lib/queries";
 import CookieBanner from "@/components/CookieBanner";
+import Breadcrumbs, { BreadcrumbProvider } from "@/components/Breadcrumbs";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,8 +49,11 @@ export default async function RootLayout({
   return (
     <html lang="de" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
-        <Navbar session={navSession} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+        <BreadcrumbProvider>
+          <Navbar session={navSession} />
+          <Breadcrumbs />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+        </BreadcrumbProvider>
         <footer className="border-t border-white/10 py-8">
           <div className="mx-auto max-w-6xl px-4 flex flex-col items-center gap-5">
             {/* Social links */}

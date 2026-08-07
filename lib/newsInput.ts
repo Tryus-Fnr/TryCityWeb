@@ -36,9 +36,28 @@ export async function parseNewsInput(
     return { error: "Der Beitragstext ist zu lang." };
   }
 
-  const authorName = String(body.authorName ?? "").trim();
-  if (!/^[A-Za-z0-9_]{3,16}$/.test(authorName)) {
-    return { error: "Der Autorname muss ein gültiger Minecraft-Name sein (3–16 Zeichen)." };
+  // Mehrere Verfasser sind erlaubt; ältere Aufrufer schicken noch ein einzelnes
+  // authorName, das wird hier mit aufgenommen.
+  const rawAuthors = Array.isArray(body.authorNames)
+    ? body.authorNames
+    : body.authorName !== undefined
+      ? [body.authorName]
+      : [];
+  const authorNames: string[] = [];
+  for (const raw of rawAuthors) {
+    const name = String(raw ?? "").trim();
+    if (!name) continue;
+    if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) {
+      return { error: `„${name}" ist kein gültiger Minecraft-Name (3–16 Zeichen, A–Z, 0–9, _).` };
+    }
+    if (authorNames.some((n) => n.toLowerCase() === name.toLowerCase())) continue;
+    authorNames.push(name);
+  }
+  if (authorNames.length === 0) {
+    return { error: "Es muss mindestens ein Verfasser angegeben sein." };
+  }
+  if (authorNames.length > LIMITS.authors) {
+    return { error: `Es sind höchstens ${LIMITS.authors} Verfasser möglich.` };
   }
 
   const rawImages = Array.isArray(body.images) ? body.images : [];
@@ -75,7 +94,7 @@ export async function parseNewsInput(
       title,
       summary,
       body: text,
-      authorName,
+      authorNames,
       published: body.published !== false,
       pinned: body.pinned === true,
       images,

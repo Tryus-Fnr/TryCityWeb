@@ -72,6 +72,9 @@ GRANT SELECT, INSERT, UPDATE ON `<DATENBANK>`.`smpg_web_login_codes` TO 'trycity
 -- Neuigkeiten werden ausschließlich über den Admin-Bereich gepflegt.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news` TO 'trycity_web'@'localhost';
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_images` TO 'trycity_web'@'localhost';
+-- Weitere Verfasser eines Beitrags. Die Tabelle legt das Plugin an (NewsBridge);
+-- smpg_news.author_name bleibt der Hauptautor, damit ingame alles bleibt wie es war.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_authors` TO 'trycity_web'@'localhost';
 
 -- Preis-Verwaltung im Admin-Bereich: dauerhafte Einstellungen und Metas.
 -- Bewusst ohne DELETE – aus dem Web wird nichts gelöscht, nur geändert und

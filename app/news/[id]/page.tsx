@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil, Pin } from "lucide-react";
+import { ArrowLeft, CalendarDays, Pencil, Pin, Users } from "lucide-react";
 import { getAdminStatus } from "@/lib/auth";
-import { germanDate, loadNewsImages, loadNewsPost } from "@/lib/news";
+import {
+  germanDate,
+  loadNewsImages,
+  loadNewsPost,
+  loadPublishedNews,
+  type NewsImage,
+} from "@/lib/news";
 import { mcPlainText, shorten } from "@/lib/mcformat";
 import McText from "@/components/news/McText";
 import NewsTypeBadge from "@/components/news/NewsTypeBadge";
 import AuthorAvatar from "@/components/news/AuthorAvatar";
+import NewsCard from "@/components/news/NewsCard";
+import { SetBreadcrumb } from "@/components/Breadcrumbs";
 
 export const dynamic = "force-dynamic";
 
@@ -32,73 +40,121 @@ export default async function NewsDetailPage({ params }: Props) {
   if (!post) notFound();
 
   const images = await loadNewsImages(id);
+  const authors = post.authors.length > 0 ? post.authors : [{ name: post.authorName, uuid: null }];
+
+  // Das erste Bild steht als Aufmacher oben und wird deshalb nicht noch einmal
+  // mitten im Text gezeigt.
+  const cover: NewsImage | undefined = images[0];
+  const inlineImages = cover ? images.slice(1) : images;
+
+  const more = (await loadPublishedNews(4)).filter((p) => p.id !== post.id).slice(0, 3);
 
   return (
-    <article className="flex flex-col gap-6">
-      <Link
-        href="/news"
-        className="inline-flex w-fit items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-neutral-300"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Alle Neuigkeiten
-      </Link>
+    <article className="flex flex-col gap-8">
+      <SetBreadcrumb label={post.title} />
 
-      <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
-        {/* ── Autor: Skin-Render wie bei einem Minecraft-Foren-Beitrag ── */}
-        <aside className="flex shrink-0 flex-row items-center gap-4 sm:w-40 sm:flex-col sm:items-center sm:gap-3">
-          <AuthorAvatar name={post.authorName} className="h-32 w-24 sm:h-52 sm:w-36" />
-          <div className="text-left sm:text-center">
-            <p className="text-sm font-semibold text-neutral-100">{post.authorName}</p>
-            <p className="mt-0.5 text-xs text-neutral-600">Autor</p>
-          </div>
-        </aside>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/news"
+          className="inline-flex w-fit items-center gap-2 text-sm text-neutral-500 transition-colors hover:text-neutral-300"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Zurück zum Blog
+        </Link>
+        {isAdmin && (
+          <Link
+            href={`/admin/news/${post.id}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-200"
+          >
+            <Pencil className="h-3 w-3" />
+            Bearbeiten
+          </Link>
+        )}
+      </div>
 
-        {/* ── Beitrag ── */}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <NewsTypeBadge type={post.type} />
-            {post.pinned && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400">
-                <Pin className="h-3 w-3" />
-                Angepinnt
-              </span>
-            )}
-            {!post.published && (
-              <span className="rounded-md bg-neutral-700/40 px-2 py-0.5 text-[11px] font-semibold text-neutral-400">
-                Entwurf
-              </span>
-            )}
-            <span className="text-xs text-neutral-600">{germanDate(post.createdAt)}</span>
-            {isAdmin && (
-              <Link
-                href={`/admin/news/${post.id}`}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1 text-xs text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-200"
-              >
-                <Pencil className="h-3 w-3" />
-                Bearbeiten
-              </Link>
-            )}
-          </div>
-
-          <h1 className="mt-3 text-2xl font-bold leading-tight sm:text-3xl">{post.title}</h1>
-
-          {post.summary && (
-            <p className="mt-3 border-l-2 border-white/10 pl-4 text-sm italic leading-relaxed text-neutral-400">
-              {post.summary}
-            </p>
+      {/* ── Aufmacherbild ── */}
+      {cover && (
+        <figure className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/30">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/news/image/${cover.id}`}
+            alt={cover.caption || post.title}
+            className="max-h-[60vh] w-full object-cover"
+          />
+          {cover.caption && (
+            <figcaption className="border-t border-white/[0.06] px-4 py-2 text-xs text-neutral-500">
+              {cover.caption}
+            </figcaption>
           )}
+        </figure>
+      )}
 
-          <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6">
-            <McText text={post.body} images={images} className="text-[15px] text-neutral-200" />
-          </div>
-
-          {post.updatedAt && post.updatedAt !== post.createdAt && (
-            <p className="mt-4 text-xs text-neutral-600">
-              Zuletzt bearbeitet am {germanDate(post.updatedAt)}
-            </p>
+      {/* ── Kopf ── */}
+      <header className="flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <NewsTypeBadge type={post.type} />
+          {post.pinned && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400">
+              <Pin className="h-3 w-3" />
+              Angepinnt
+            </span>
+          )}
+          {!post.published && (
+            <span className="rounded-md bg-neutral-700/40 px-2 py-0.5 text-[11px] font-semibold text-neutral-400">
+              Entwurf
+            </span>
           )}
         </div>
+
+        <h1 className="max-w-3xl text-3xl font-bold leading-tight tracking-tight text-balance sm:text-4xl">
+          {post.title}
+        </h1>
+
+        {/* Kopfdaten als abgesetzte Felder – Datum und Verfasser auf einen Blick. */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-2 text-sm text-neutral-400">
+            <CalendarDays className="h-4 w-4 text-neutral-600" />
+            Veröffentlicht: <span className="text-neutral-200">{germanDate(post.createdAt)}</span>
+          </span>
+          <span className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.02] px-3.5 py-2 text-sm text-neutral-400">
+            <Users className="h-4 w-4 text-neutral-600" />
+            {authors.length === 1 ? "Geschrieben von:" : "Geschrieben von:"}
+            {authors.map((a) => (
+              <span key={a.name} className="inline-flex items-center gap-1.5 text-neutral-200">
+                <AuthorAvatar name={a.name} className="h-6 w-5 rounded-sm bg-white/5" />
+                {a.name}
+              </span>
+            ))}
+          </span>
+        </div>
+
+        {post.summary && (
+          <p className="max-w-2xl text-[15px] leading-relaxed text-neutral-400">{post.summary}</p>
+        )}
+      </header>
+
+      {/* ── Beitrag ── */}
+      <div className="mx-auto w-full max-w-3xl">
+        <McText text={post.body} images={inlineImages} className="text-[15px] text-neutral-300" />
+
+        {post.updatedAt && post.updatedAt !== post.createdAt && (
+          <p className="mt-8 text-xs text-neutral-600">
+            Zuletzt bearbeitet am {germanDate(post.updatedAt)}
+          </p>
+        )}
       </div>
+
+      {/* ── Weitere Beiträge ── */}
+      {more.length > 0 && (
+        <section className="mt-6 border-t border-white/[0.06] pt-8">
+          <h2 className="mb-5 text-xl font-bold">Weitere Beiträge</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {more.map((p) => (
+              <NewsCard key={p.id} post={p} />
+            ))}
+          </div>
+        </section>
+      )}
     </article>
   );
 }

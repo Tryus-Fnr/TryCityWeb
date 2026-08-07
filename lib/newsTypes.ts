@@ -27,18 +27,39 @@ export function isNewsType(id: string): id is NewsTypeId {
   return NEWS_TYPES.some((t) => t.id === id);
 }
 
+/** Ein Verfasser eines Beitrags. */
+export type NewsAuthor = {
+  name: string;
+  /** Für den Skin-Render; null, wenn der Name nicht bekannt ist. */
+  uuid: string | null;
+};
+
 export type NewsPost = {
   id: number;
   type: NewsTypeId;
   title: string;
   summary: string;
   body: string;
-  /** ANGEZEIGTER Autor – nicht zwingend der Ersteller. */
+  /**
+   * HAUPTAUTOR – nicht zwingend der Ersteller. Steht auch ingame so da; die
+   * Spalte fasst nur einen Namen (VARCHAR(16)).
+   */
   authorName: string;
   authorUuid: string | null;
+  /**
+   * Alle Verfasser, Hauptautor zuerst. Beiträge von vor der Mehrfach-Autoren-
+   * Umstellung haben hier genau einen Eintrag.
+   */
+  authors: NewsAuthor[];
   published: boolean;
   pinned: boolean;
   imageCount: number;
+  /**
+   * id des ersten Bildes für Vorschaubild und Aufmacher, oder null.
+   * Die Bilddaten kommen über /api/news/image/<id> – in der Liste selbst wären
+   * sie viel zu schwer.
+   */
+  coverId: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -66,7 +87,8 @@ export type NewsInput = {
   title: string;
   summary: string;
   body: string;
-  authorName: string;
+  /** Alle Verfasser in Anzeigereihenfolge; der erste wird der Hauptautor. */
+  authorNames: string[];
   published: boolean;
   pinned: boolean;
   images: NewsImageInput[];
@@ -80,7 +102,16 @@ export const LIMITS = {
   /** Base64-Länge je Bild (≈ 2 MB Rohdaten). */
   imageData: 2_800_000,
   images: 12,
+  authors: 6,
 };
+
+/** „JulcoYT" · „JulcoYT, Gebuildet" · „A, B und C" */
+export function authorLine(authors: NewsAuthor[] | undefined, fallback = ""): string {
+  const names = (authors ?? []).map((a) => a.name).filter(Boolean);
+  if (names.length === 0) return fallback;
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`;
+}
 
 /** "2026-07-26 10:30:00" → "26.07.2026". */
 export function germanDate(ts: string): string {

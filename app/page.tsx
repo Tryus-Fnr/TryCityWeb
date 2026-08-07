@@ -18,6 +18,7 @@ import { getAdminStatus, getModStatus } from "@/lib/auth";
 import TabCarousel, { type CarouselTab } from "@/components/TabCarousel";
 import EconomyLeaderboards from "@/components/EconomyLeaderboards";
 import HomeNews from "@/components/news/HomeNews";
+import JoinDialog from "@/components/JoinDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -153,24 +154,11 @@ export default async function Home() {
           <p className="mt-5 max-w-lg text-lg font-light text-neutral-200/90 drop-shadow sm:text-xl">
             Minecraft-Netzwerk mit lebendiger Wirtschaft, Auktionen, Kopfgeldern und mehr.
           </p>
+          <JoinDialog />
         </div>
       </section>
 
-      {/* ── JOIN ── */}
-      <section className="border-b border-white/[0.08] py-14 text-center">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-neutral-500">
-          Jetzt mitspielen
-        </p>
-        <h2 className="mt-3 text-2xl font-bold">Trete dem Netzwerk bei</h2>
-        <div className="mx-auto mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <ServerAddress edition="Java Edition" address="trycity.net" />
-          <ServerAddress
-            edition="Bedrock Edition"
-            address="trycity.net"
-            port="19132"
-          />
-        </div>
-      </section>
+      {/* Die Serveradressen stehen jetzt im Fenster hinter dem Knopf im Banner. */}
 
       {/* ── LETZTE UPDATES & INFOS ── */}
       <HomeNews />
@@ -278,30 +266,6 @@ export default async function Home() {
 }
 
 /* ── Sub-components ── */
-
-function ServerAddress({
-  edition,
-  address,
-  port,
-}: {
-  edition: string;
-  address: string;
-  port?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3.5 transition-colors hover:border-white/20">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-500">
-        {edition}
-      </span>
-      <span className="font-mono text-sm text-neutral-100">{address}</span>
-      {port && (
-        <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs text-neutral-400">
-          :{port}
-        </span>
-      )}
-    </div>
-  );
-}
 
 function FeatureSection({
   feature,

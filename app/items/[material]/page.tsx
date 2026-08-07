@@ -1,6 +1,7 @@
 import ItemDetail from "@/components/ItemDetail";
 import { getAdminStatus } from "@/lib/auth";
 import { germanName } from "@/lib/itemNames.server";
+import { SetBreadcrumb } from "@/components/Breadcrumbs";
 
 export async function generateMetadata({
   params,
@@ -19,7 +20,13 @@ export default async function ItemDetailPage({
   const { material } = await params;
   const isAdmin = await getAdminStatus();
   const mat = material.toUpperCase();
+  const name = germanName(mat);
   // Der deutsche Name kommt vom Server mit: so steht die Überschrift schon beim
   // ersten Anzeigen richtig da und springt nicht nachträglich um.
-  return <ItemDetail material={mat} name={germanName(mat)} isAdmin={isAdmin} />;
+  return (
+    <>
+      <SetBreadcrumb label={name} />
+      <ItemDetail material={mat} name={name} isAdmin={isAdmin} />
+    </>
+  );
 }

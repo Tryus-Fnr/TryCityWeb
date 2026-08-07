@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { parseMc, styleToCss, type McNode } from "@/lib/mcformat";
+import { parseMc, splitMcBlocks, styleToCss, type McNode } from "@/lib/mcformat";
 import Obfuscated from "./Obfuscated";
 import type { NewsImage } from "@/lib/newsTypes";
 
@@ -10,21 +10,67 @@ import type { NewsImage } from "@/lib/newsTypes";
  *
  * Bilder (`[img:N]`) werden hier – anders als im Spiel – tatsächlich angezeigt.
  * Fehlt ein Bild zu einem Platzhalter, wird der Platzhalter still übersprungen.
+ *
+ * Zusätzlich werden Zeilen mit führenden Rauten zu Überschriften: `#`, `##` und
+ * `###`. Ingame bleiben die Rauten stehen – dort gibt es keine Schriftgrößen,
+ * und ein `# Fazit` liest sich auch so als Zwischenüberschrift.
  */
 export default function McText({
   text,
   images = [],
   className = "",
+  headings = true,
 }: {
   text: string;
   images?: NewsImage[];
   className?: string;
+  /** Überschriften auswerten. Für Vorschauen abschaltbar. */
+  headings?: boolean;
 }) {
   const byIndex = new Map(images.map((img) => [img.idx, img]));
 
+  if (!headings) {
+    return (
+      <div className={`whitespace-pre-wrap break-words leading-relaxed ${className}`}>
+        {renderNodes(parseMc(text), byIndex)}
+      </div>
+    );
+  }
+
+  const blocks = splitMcBlocks(text);
+
   return (
-    <div className={`whitespace-pre-wrap break-words leading-relaxed ${className}`}>
-      {renderNodes(parseMc(text), byIndex)}
+    <div className={`break-words leading-relaxed ${className}`}>
+      {blocks.map((block, i) => {
+        if (block.kind === "heading") {
+          const inner = renderNodes(parseMc(block.text), byIndex);
+          const common = "font-bold tracking-tight text-neutral-50 first:mt-0";
+          if (block.level === 1) {
+            return (
+              <h2 key={i} className={`${common} mt-8 mb-3 text-2xl sm:text-[1.7rem]`}>
+                {inner}
+              </h2>
+            );
+          }
+          if (block.level === 2) {
+            return (
+              <h3 key={i} className={`${common} mt-7 mb-2.5 text-xl`}>
+                {inner}
+              </h3>
+            );
+          }
+          return (
+            <h4 key={i} className={`${common} mt-6 mb-2 text-base uppercase tracking-wide`}>
+              {inner}
+            </h4>
+          );
+        }
+        return (
+          <div key={i} className="whitespace-pre-wrap first:mt-0">
+            {renderNodes(parseMc(block.text), byIndex)}
+          </div>
+        );
+      })}
     </div>
   );
 }

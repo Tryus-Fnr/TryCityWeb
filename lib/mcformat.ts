@@ -266,3 +266,52 @@ export function styleToCss(style: McStyle): CSSProperties {
     textDecoration: decorations.length ? decorations.join(" ") : undefined,
   };
 }
+
+// ─── Blöcke: Überschriften à la Markdown ─────────────────────────────────────
+
+/**
+ * Ein Abschnitt eines Beitragstexts.
+ *
+ * Der Beitragstext ist Minecraft-Format, kein Markdown – die einzige Ausnahme
+ * sind Überschriften. Eine Zeile, die mit einer bis drei Rauten und einem
+ * Leerzeichen beginnt, wird im Web zur Überschrift. Ingame bleiben die Rauten
+ * einfach als Text stehen; das ist gewollt, dort gibt es keine Schriftgrößen.
+ */
+export type McBlock =
+  | { kind: "heading"; level: 1 | 2 | 3; text: string }
+  | { kind: "body"; text: string };
+
+const HEADING = /^ {0,3}(#{1,3})[ \t]+(.*)$/;
+
+/**
+ * Zerlegt einen Beitragstext in Überschriften und normale Abschnitte.
+ * Der Text der Abschnitte bleibt unangetastet und geht danach durch
+ * {@link parseMc} – Farben und Verläufe funktionieren also auch in
+ * Überschriften.
+ */
+export function splitMcBlocks(text: string): McBlock[] {
+  const out: McBlock[] = [];
+  let buf: string[] = [];
+
+  const flush = () => {
+    if (buf.length === 0) return;
+    // Leerzeilen am Rand eines Abschnitts würden sonst als <br> auftauchen und
+    // die Abstände neben Überschriften verdoppeln.
+    while (buf.length && buf[0].trim() === "") buf.shift();
+    while (buf.length && buf[buf.length - 1].trim() === "") buf.pop();
+    if (buf.length) out.push({ kind: "body", text: buf.join("\n") });
+    buf = [];
+  };
+
+  for (const line of (text ?? "").split("\n")) {
+    const m = HEADING.exec(line.replace(/\r$/, ""));
+    if (m && m[2].trim()) {
+      flush();
+      out.push({ kind: "heading", level: m[1].length as 1 | 2 | 3, text: m[2].trim() });
+    } else {
+      buf.push(line);
+    }
+  }
+  flush();
+  return out;
+}

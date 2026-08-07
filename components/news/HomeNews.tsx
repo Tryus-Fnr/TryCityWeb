@@ -39,8 +39,8 @@ export default async function HomeNews({ limit = 4 }: { limit?: number }) {
         </Link>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {posts.map((post) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {posts.slice(0, 3).map((post) => (
           <NewsCard key={post.id} post={post} />
         ))}
       </div>
