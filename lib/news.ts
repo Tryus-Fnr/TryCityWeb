@@ -41,6 +41,7 @@ type Row = {
   author_uuid: string | null;
   published: number;
   pinned: number;
+  markdown: number | null;
   image_count: number;
   cover_id: number | null;
   created_at: string;
@@ -61,6 +62,9 @@ function mapRow(r: Row): NewsPost {
     authors: [{ name: r.author_name, uuid: r.author_uuid }],
     published: Number(r.published) === 1,
     pinned: Number(r.pinned) === 1,
+    // Fehlt die Spalte noch (Plugin lief seit dem Update nicht), gilt der
+    // Artikel-Modus als an – so wie er für neue Beiträge voreingestellt ist.
+    markdown: r.markdown === null || r.markdown === undefined ? true : Number(r.markdown) === 1,
     imageCount: Number(r.image_count ?? 0),
     coverId: r.cover_id !== null && r.cover_id !== undefined ? Number(r.cover_id) : null,
     createdAt: r.created_at,
@@ -243,8 +247,8 @@ export async function createNewsPost(input: NewsInput): Promise<number> {
     await conn.beginTransaction();
     const [res] = await conn.execute(
       `INSERT INTO smpg_news
-         (type, title, summary, body, author_name, author_uuid, published, pinned)
-       VALUES (?,?,?,?,?,?,?,?)`,
+         (type, title, summary, body, author_name, author_uuid, published, pinned, markdown)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       [
         input.type,
         input.title,
@@ -254,6 +258,7 @@ export async function createNewsPost(input: NewsInput): Promise<number> {
         main.uuid,
         input.published ? 1 : 0,
         input.pinned ? 1 : 0,
+        input.markdown ? 1 : 0,
       ]
     );
     const id = (res as { insertId: number }).insertId;
@@ -279,7 +284,7 @@ export async function updateNewsPost(id: number, input: NewsInput): Promise<void
     await conn.execute(
       `UPDATE smpg_news
        SET type = ?, title = ?, summary = ?, body = ?, author_name = ?,
-           author_uuid = ?, published = ?, pinned = ?
+           author_uuid = ?, published = ?, pinned = ?, markdown = ?
        WHERE id = ?`,
       [
         input.type,
@@ -290,6 +295,7 @@ export async function updateNewsPost(id: number, input: NewsInput): Promise<void
         main.uuid,
         input.published ? 1 : 0,
         input.pinned ? 1 : 0,
+        input.markdown ? 1 : 0,
         id,
       ]
     );

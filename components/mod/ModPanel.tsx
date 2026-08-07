@@ -6,6 +6,16 @@ import type {
   UnbanRequestRow, BanRow, PlayerStats,
   RecentPunishmentRow, RecentAnticheatFlagRow,
 } from "@/lib/queries";
+import { usePagedRows } from "./usePagedRows";
+
+/** Gesamtzahlen für die Reiter, unabhängig davon wie viel geladen ist. */
+export type ModCounts = {
+  mutes: number;
+  activeMutes: number;
+  warns: number;
+  kicks: number;
+  anticheat: number;
+};
 import {
   Clock, CheckCircle, XCircle, AlertCircle, FileText,
   Users, ShieldBan, Ban, Gavel, VolumeX, TriangleAlert, LogOut, Shield,
@@ -21,7 +31,41 @@ type Props = {
   warns: RecentPunishmentRow[];
   kicks: RecentPunishmentRow[];
   anticheatFlags: RecentAnticheatFlagRow[];
+  /** Echte Gesamtzahlen – die Listen oben sind nur der erste Block. */
+  counts: ModCounts;
 };
+
+/** Zeilen je Anzeige-Seite. Unabhängig davon, wie viel am Stück geladen wird. */
+const VIEW_PAGE_SIZE = 25;
+
+/** Was eine Liste über ihren Nachlade-Zustand weiß. */
+type PagingInfo = {
+  loaded: number;
+  total: number;
+  hasMore: boolean;
+  loading: boolean;
+  error: string | null;
+  loadMore: () => void;
+};
+
+/** Ergebnis von usePagedRows in die Form bringen, die die Blätterleiste braucht. */
+function paging(p: {
+  rows: unknown[];
+  total: number;
+  hasMore: boolean;
+  loading: boolean;
+  error: string | null;
+  loadMore: () => void | Promise<void>;
+}): PagingInfo {
+  return {
+    loaded: p.rows.length,
+    total: p.total,
+    hasMore: p.hasMore,
+    loading: p.loading,
+    error: p.error,
+    loadMore: () => void p.loadMore(),
+  };
+}
 
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
@@ -49,19 +93,28 @@ function PunishmentTable({
   rows,
   showExpiry = true,
   showActive = true,
+  paging,
 }: {
   rows: (BanRow | RecentPunishmentRow)[];
   showExpiry?: boolean;
   showActive?: boolean;
+  paging?: PagingInfo;
 }) {
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
+  const [page, setPage] = useState(0);
 
   const filtered = rows.filter((r) => {
     if (!showInactive && !r.active) return false;
     if (search && !r.targetName.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE_SIZE));
+  // Schrumpft die Liste durch Suche oder Filter, darf die Seitenzahl nicht ins
+  // Leere zeigen. Beim Tippen wird ohnehin auf Seite eins zurückgesetzt.
+  const safePage = Math.min(page, pageCount - 1);
+  const shown = filtered.slice(safePage * VIEW_PAGE_SIZE, (safePage + 1) * VIEW_PAGE_SIZE);
 
   return (
     <div className="p-4">
@@ -70,7 +123,10 @@ function PunishmentTable({
           type="text"
           placeholder="Spieler suchen…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
           className="flex-1 rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30"
         />
         {showActive && (
@@ -78,7 +134,10 @@ function PunishmentTable({
             <input
               type="checkbox"
               checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
+              onChange={(e) => {
+                setShowInactive(e.target.checked);
+                setPage(0);
+              }}
               className="h-4 w-4 rounded border-white/20 bg-white/5 accent-red-500"
             />
             Aufgehobene anzeigen
@@ -105,7 +164,7 @@ function PunishmentTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id} className="border-b border-white/4 last:border-0 hover:bg-white/2 transition-colors">
                   <td className="py-2.5 pr-4">
                     <Link href={`/mod/player/${r.targetUuid}`} className="flex items-center gap-2 hover:text-sky-300 transition-colors">
@@ -153,19 +212,131 @@ function PunishmentTable({
           </table>
         </div>
       )}
+
+      <Pager
+        page={safePage}
+        pageCount={pageCount}
+        onPage={setPage}
+        shown={filtered.length}
+        paging={paging}
+      />
     </div>
+  );
+}
+
+/**
+ * Blätterleiste unter einer Liste.
+ *
+ * Zeigt zusätzlich, wie viele Einträge es insgesamt gibt und lädt bei Bedarf
+ * den nächsten Block nach. Gefiltert und gesucht wird immer über alles, was
+ * bereits geladen ist – deshalb wird nachgeladen statt ausgetauscht.
+ */
+function Pager({
+  page,
+  pageCount,
+  onPage,
+  shown,
+  paging,
+}: {
+  page: number;
+  pageCount: number;
+  onPage: (p: number) => void;
+  shown: number;
+  paging?: PagingInfo;
+}) {
+  if (pageCount <= 1 && !paging?.hasMore) return null;
+
+  // Bei vielen Seiten nur ein Fenster um die aktuelle herum zeigen.
+  const from = Math.max(0, Math.min(page - 2, pageCount - 5));
+  const numbers = Array.from({ length: Math.min(5, pageCount) }, (_, i) => from + i);
+
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/6 pt-3">
+      <span className="text-xs text-neutral-500">
+        {shown} angezeigt
+        {paging && paging.total > paging.loaded && ` · ${paging.loaded} von ${paging.total} geladen`}
+        {paging && paging.total <= paging.loaded && ` · ${paging.total} insgesamt`}
+      </span>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {pageCount > 1 && (
+          <>
+            <PagerButton disabled={page === 0} onClick={() => onPage(page - 1)}>
+              Zurück
+            </PagerButton>
+            {numbers.map((n) => (
+              <PagerButton key={n} active={n === page} onClick={() => onPage(n)}>
+                {n + 1}
+              </PagerButton>
+            ))}
+            <PagerButton disabled={page >= pageCount - 1} onClick={() => onPage(page + 1)}>
+              Weiter
+            </PagerButton>
+          </>
+        )}
+        {paging?.hasMore && (
+          <button
+            type="button"
+            onClick={paging.loadMore}
+            disabled={paging.loading}
+            className="rounded-lg bg-sky-500/15 px-3 py-1.5 text-xs font-semibold text-sky-300 ring-1 ring-sky-500/30 transition-colors hover:bg-sky-500/25 disabled:opacity-50"
+          >
+            {paging.loading ? "Lädt…" : "Weitere laden"}
+          </button>
+        )}
+      </div>
+      {paging?.error && <span className="text-xs text-red-400">{paging.error}</span>}
+    </div>
+  );
+}
+
+function PagerButton({
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-w-8 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+        active
+          ? "bg-sky-500/20 text-sky-300 ring-1 ring-sky-400/40"
+          : "text-neutral-400 ring-1 ring-white/10 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
 // ── Anticheat-Tabelle ─────────────────────────────────────────────────────────
 
-function AnticheatTable({ flags }: { flags: RecentAnticheatFlagRow[] }) {
+function AnticheatTable({
+  flags,
+  paging,
+}: {
+  flags: RecentAnticheatFlagRow[];
+  paging?: PagingInfo;
+}) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
   const filtered = flags.filter((f) =>
     !search || f.playerName.toLowerCase().includes(search.toLowerCase()) ||
     f.checkName.toLowerCase().includes(search.toLowerCase())
   );
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const shown = filtered.slice(safePage * VIEW_PAGE_SIZE, (safePage + 1) * VIEW_PAGE_SIZE);
 
   return (
     <div className="p-4">
@@ -173,7 +344,10 @@ function AnticheatTable({ flags }: { flags: RecentAnticheatFlagRow[] }) {
         type="text"
         placeholder="Spieler oder Check suchen…"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(0);
+        }}
         className="mb-4 w-full rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30"
       />
 
@@ -196,7 +370,7 @@ function AnticheatTable({ flags }: { flags: RecentAnticheatFlagRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((f) => (
+              {shown.map((f) => (
                 <tr key={f.id} className="border-b border-white/4 last:border-0 hover:bg-white/2 transition-colors">
                   <td className="py-2 pr-4">
                     <Link href={`/mod/player/${f.playerUuid}`} className="flex items-center gap-2 hover:text-sky-300 transition-colors">
@@ -235,6 +409,14 @@ function AnticheatTable({ flags }: { flags: RecentAnticheatFlagRow[] }) {
           </table>
         </div>
       )}
+
+      <Pager
+        page={page}
+        pageCount={pageCount}
+        onPage={setPage}
+        shown={filtered.length}
+        paging={paging}
+      />
     </div>
   );
 }
@@ -260,8 +442,15 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ModPanel({
-  unbanRequests, allBans, playerStats, mutes, warns, kicks, anticheatFlags,
+  unbanRequests, allBans, playerStats, mutes, warns, kicks, anticheatFlags, counts,
 }: Props) {
+  // Jede Liste bekommt ihren eigenen Nachlade-Zustand: die Seite liefert den
+  // ersten Block, weitere holt der Haken über /api/mod/list.
+  const mutePage = usePagedRows<RecentPunishmentRow>("mutes", mutes, counts.mutes);
+  const warnPage = usePagedRows<RecentPunishmentRow>("warns", warns, counts.warns);
+  const kickPage = usePagedRows<RecentPunishmentRow>("kicks", kicks, counts.kicks);
+  const flagPage = usePagedRows<RecentAnticheatFlagRow>("anticheat", anticheatFlags, counts.anticheat);
+
   const [tab, setTab] = useState<Tab>("requests");
   const [reqFilter, setReqFilter] = useState<"ALL" | "PENDING" | "DONE" | "FAILED">("ALL");
   const [reqSearch, setReqSearch] = useState("");
@@ -281,10 +470,12 @@ export default function ModPanel({
   const TABS: { key: Tab; label: string; icon: React.ReactNode; badge?: number; color: string }[] = [
     { key: "requests",  label: "Anträge",  icon: <AlertCircle className="h-4 w-4" />,    badge: pending,               color: "sky"    },
     { key: "bans",      label: "Bans",     icon: <Ban className="h-4 w-4" />,              badge: activeBanCount,        color: "red"    },
-    { key: "mutes",     label: "Mutes",    icon: <VolumeX className="h-4 w-4" />,          badge: mutes.filter(m=>m.active).length, color: "purple" },
-    { key: "warns",     label: "Warns",    icon: <TriangleAlert className="h-4 w-4" />,    badge: warns.length,          color: "yellow" },
-    { key: "kicks",     label: "Kicks",    icon: <LogOut className="h-4 w-4" />,           badge: kicks.length,          color: "orange" },
-    { key: "anticheat", label: "Anticheat",icon: <Shield className="h-4 w-4" />,           badge: anticheatFlags.length, color: "orange" },
+    // Zahlen aus eigenen COUNT-Abfragen: die Länge der geladenen Liste zeigte
+    // vorher immer nur die Obergrenze an, egal wie viele es wirklich waren.
+    { key: "mutes",     label: "Mutes",    icon: <VolumeX className="h-4 w-4" />,          badge: counts.activeMutes,    color: "purple" },
+    { key: "warns",     label: "Warns",    icon: <TriangleAlert className="h-4 w-4" />,    badge: counts.warns,          color: "yellow" },
+    { key: "kicks",     label: "Kicks",    icon: <LogOut className="h-4 w-4" />,           badge: counts.kicks,          color: "orange" },
+    { key: "anticheat", label: "Anticheat",icon: <Shield className="h-4 w-4" />,           badge: counts.anticheat,      color: "orange" },
   ];
 
   const colorMap: Record<string, { active: string; badge: string }> = {
@@ -428,10 +619,28 @@ export default function ModPanel({
         )}
 
         {tab === "bans"   && <PunishmentTable rows={allBans} showExpiry showActive />}
-        {tab === "mutes"  && <PunishmentTable rows={mutes}   showExpiry showActive />}
-        {tab === "warns"  && <PunishmentTable rows={warns}   showExpiry={false} showActive={false} />}
-        {tab === "kicks"  && <PunishmentTable rows={kicks}   showExpiry={false} showActive={false} />}
-        {tab === "anticheat" && <AnticheatTable flags={anticheatFlags} />}
+        {tab === "mutes"  && (
+          <PunishmentTable rows={mutePage.rows} showExpiry showActive paging={paging(mutePage)} />
+        )}
+        {tab === "warns"  && (
+          <PunishmentTable
+            rows={warnPage.rows}
+            showExpiry={false}
+            showActive={false}
+            paging={paging(warnPage)}
+          />
+        )}
+        {tab === "kicks"  && (
+          <PunishmentTable
+            rows={kickPage.rows}
+            showExpiry={false}
+            showActive={false}
+            paging={paging(kickPage)}
+          />
+        )}
+        {tab === "anticheat" && (
+          <AnticheatTable flags={flagPage.rows} paging={paging(flagPage)} />
+        )}
       </div>
     </div>
   );

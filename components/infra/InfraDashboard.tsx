@@ -7,7 +7,7 @@ import ClusterOverview from "./ClusterOverview";
 import MemoryBar from "./MemoryBar";
 import ServiceTable from "./ServiceTable";
 import UsageBar from "./UsageBar";
-import { formatAge, formatBytes } from "./utils";
+import { formatAge, formatBytes, isProxyEnvironment } from "./utils";
 
 type ApiResponse = {
   ok: boolean;
@@ -71,7 +71,11 @@ export default function InfraDashboard() {
     );
   }
 
-  const totalPlayers = data.services.reduce((sum, s) => sum + s.players, 0);
+  // Proxies bleiben draußen: sie zählen jeden Spieler des Netzwerks mit, die
+  // Spielserver jeweils ihre eigenen. Beides zusammen ergäbe die doppelte Zahl.
+  const totalPlayers = data.services
+    .filter((s) => !isProxyEnvironment(s.environment))
+    .reduce((sum, s) => sum + s.players, 0);
   const onlineNodes = data.nodes.filter((n) => n.online).length;
 
   return (
@@ -137,6 +141,9 @@ export default function InfraDashboard() {
 
 /** Kachel einer VPS – führt per Klick auf die Detailseite. */
 function NodeCard({ node, services }: { node: InfraNode; services: InfraService[] }) {
+  const nodePlayers = services
+    .filter((s) => !isProxyEnvironment(s.environment))
+    .reduce((sum, s) => sum + s.players, 0);
   const diskRatio = node.diskTotal > 0 ? (node.diskTotal - node.diskFree) / node.diskTotal : -1;
   const budgetRatio = node.memMaxMb > 0 ? node.memReservedMb / node.memMaxMb : -1;
   const hasOsData = node.ramTotal > 0;
@@ -163,7 +170,10 @@ function NodeCard({ node, services }: { node: InfraNode; services: InfraService[
         </div>
         <div className="text-right text-xs text-neutral-500">
           <div className="text-sm font-medium text-neutral-300">{services.length} Services</div>
-          <div>{node.players} Spieler</div>
+          {/* Aus den Services gerechnet statt aus node.players: so stimmt die
+              Zahl auch mit Verläufen, die noch von vor dem Proxy-Ausschluss
+              stammen. */}
+          <div>{nodePlayers} Spieler</div>
         </div>
       </div>
 

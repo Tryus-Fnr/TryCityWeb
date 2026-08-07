@@ -54,10 +54,27 @@ export function usageTextColor(ratio: number): string {
   return "text-emerald-400";
 }
 
+/**
+ * Ist der Service ein Proxy?
+ *
+ * Für Spielerzahlen entscheidend: ein Proxy kennt JEDEN Spieler des Netzwerks,
+ * ein Spielserver nur die auf ihm. Zählt man beides zusammen, steht überall die
+ * doppelte Zahl.
+ */
+export function isProxyEnvironment(environment: string): boolean {
+  const env = (environment ?? "").toUpperCase();
+  return (
+    env.includes("PROXY") ||
+    env.includes("BUNGEE") ||
+    env.includes("VELOCITY") ||
+    env.includes("WATERFALL")
+  );
+}
+
 /** Feste Farben je Service-Umgebung, damit Proxies sofort auffallen. */
 export function environmentLabel(environment: string): { label: string; className: string } {
   const env = environment.toUpperCase();
-  if (env.includes("PROXY") || env.includes("BUNGEE") || env.includes("VELOCITY") || env.includes("WATERFALL")) {
+  if (isProxyEnvironment(env)) {
     return { label: "Proxy", className: "bg-violet-500/15 text-violet-300" };
   }
   if (env.includes("PAPER") || env.includes("SPIGOT") || env.includes("BUKKIT") || env.includes("FOLIA")) {

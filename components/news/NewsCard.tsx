@@ -45,7 +45,9 @@ export default function NewsCard({ post, coverSrc }: { post: NewsPost; coverSrc?
           <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-neutral-500">{teaser}</p>
         )}
 
-        <AuthorRow post={post} className="mt-4 pt-3" />
+        {/* mt-auto: bei unterschiedlich langen Anrissen sitzt die Zeile trotzdem
+            bei allen Karten einer Reihe auf gleicher Höhe unten. */}
+        <AuthorRow post={post} className="mt-auto border-t border-white/[0.06] pt-3" />
       </div>
     </Link>
   );
@@ -90,7 +92,14 @@ export function NewsCover({
   );
 }
 
-/** Kleine Köpfe plus Namen aller Verfasser. */
+/**
+ * Kleine Köpfe plus Namen aller Verfasser.
+ *
+ * Abstände und Trennlinie kommen bewusst vom Aufrufer: die Zeile sitzt in der
+ * Karte unten am Rand, im Aufmacher dagegen neben dem Knopf. Beides fest
+ * einzubauen und außen zu überschreiben ging schief – bei gleicher Spezifität
+ * entscheidet die Reihenfolge im Stylesheet, nicht die Absicht.
+ */
 export function AuthorRow({
   post,
   className = "",
@@ -100,7 +109,7 @@ export function AuthorRow({
 }) {
   const authors = post.authors.length > 0 ? post.authors : [{ name: post.authorName, uuid: null }];
   return (
-    <div className={`mt-auto flex items-center gap-2 border-t border-white/[0.06] ${className}`}>
+    <div className={`flex min-w-0 items-center gap-2 ${className}`}>
       <div className="flex -space-x-1.5">
         {authors.slice(0, 4).map((a) => (
           <AuthorAvatar

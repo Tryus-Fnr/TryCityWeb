@@ -53,6 +53,12 @@ export type NewsPost = {
   authors: NewsAuthor[];
   published: boolean;
   pinned: boolean;
+  /**
+   * Artikel-Modus: Zeilen mit führenden Rauten werden im Web zu Überschriften.
+   * Aus für Beiträge, in denen die Raute einfach ein Zeichen sein soll.
+   * Ingame spielt das keine Rolle – dort steht sie ohnehin als Text da.
+   */
+  markdown: boolean;
   imageCount: number;
   /**
    * id des ersten Bildes für Vorschaubild und Aufmacher, oder null.
@@ -91,6 +97,7 @@ export type NewsInput = {
   authorNames: string[];
   published: boolean;
   pinned: boolean;
+  markdown: boolean;
   images: NewsImageInput[];
 };
 

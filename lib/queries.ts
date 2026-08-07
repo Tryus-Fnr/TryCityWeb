@@ -1124,9 +1124,54 @@ export type RecentPunishmentRow = {
  * Letzte Strafen eines bestimmten Typs (MUTE / WARN / KICK), neueste zuerst.
  * expires_at = 0 → permanent (Mutes).
  */
+/**
+ * Wie viele Zeilen das Mod-Panel je Nachladen holt.
+ *
+ * Nicht die Seitengröße der Anzeige – die blättert in kleineren Schritten durch
+ * das bereits Geladene, damit Suche und Filter über alles laufen, was da ist.
+ */
+export const MOD_CHUNK_SIZE = 500;
+
+/**
+ * Gesamtzahlen für die Reiter im Mod-Panel.
+ *
+ * Bewusst eigene COUNT-Abfragen: vorher zeigten die Zähler die Länge der
+ * geladenen Liste, und die war bei 300 gekappt – ab da stand überall 300,
+ * egal wie viele es wirklich waren.
+ */
+export async function loadModCounts(): Promise<{
+  mutes: number;
+  activeMutes: number;
+  warns: number;
+  kicks: number;
+  anticheat: number;
+}> {
+  const num = (rows: { n: string | number }[]) => (rows.length > 0 ? Number(rows[0].n) : 0);
+
+  const [punish, anticheat] = await Promise.all([
+    query<{ type: string; n: string; active_n: string }>(
+      `SELECT type, COUNT(*) AS n, SUM(active = 1) AS active_n
+       FROM tryus_punishments
+       WHERE type IN ('MUTE','WARN','KICK')
+       GROUP BY type`
+    ).catch(() => []),
+    query<{ n: string }>(`SELECT COUNT(*) AS n FROM tryus_anticheat_flags`).catch(() => []),
+  ]);
+
+  const byType = new Map(punish.map((r) => [r.type, r]));
+  return {
+    mutes: Number(byType.get("MUTE")?.n ?? 0),
+    activeMutes: Number(byType.get("MUTE")?.active_n ?? 0),
+    warns: Number(byType.get("WARN")?.n ?? 0),
+    kicks: Number(byType.get("KICK")?.n ?? 0),
+    anticheat: num(anticheat),
+  };
+}
+
 export async function loadRecentPunishments(
   type: "MUTE" | "WARN" | "KICK",
-  limit = 300
+  limit = MOD_CHUNK_SIZE,
+  offset = 0
 ): Promise<RecentPunishmentRow[]> {
   const rows = await query<{
     id: number;
@@ -1149,9 +1194,9 @@ export async function loadRecentPunishments(
      LEFT JOIN tryus_players sp ON sp.uuid = p.staff_uuid
      LEFT JOIN tryus_players rp ON rp.uuid = p.removed_by
      WHERE p.type = ?
-     ORDER BY p.created_at DESC
-     LIMIT ?`,
-    [type, limit]
+     ORDER BY p.created_at DESC, p.id DESC
+     LIMIT ? OFFSET ?`,
+    [type, Math.max(1, Math.min(500, Math.floor(limit))), Math.max(0, Math.floor(offset))]
   );
   return rows.map((r) => {
     const rawExpiry = r.expires_at !== null ? Number(r.expires_at) : null;
@@ -1193,7 +1238,8 @@ export type RecentAnticheatFlagRow = {
  * Fällt still auf [] zurück, wenn die Tabelle noch nicht existiert.
  */
 export async function loadRecentAnticheatFlags(
-  limit = 300
+  limit = MOD_CHUNK_SIZE,
+  offset = 0
 ): Promise<RecentAnticheatFlagRow[]> {
   try {
     const rows = await query<{
@@ -1215,9 +1261,9 @@ export async function loadRecentAnticheatFlags(
               f.server, f.ping, f.tps, f.lagged, f.created_at
        FROM tryus_anticheat_flags f
        LEFT JOIN tryus_players p ON p.uuid = f.uuid
-       ORDER BY f.created_at DESC
-       LIMIT ?`,
-      [limit]
+       ORDER BY f.created_at DESC, f.id DESC
+       LIMIT ? OFFSET ?`,
+      [Math.max(1, Math.min(500, Math.floor(limit))), Math.max(0, Math.floor(offset))]
     );
     return rows.map((r) => ({
       id: r.id,

@@ -169,13 +169,29 @@ export async function loadNodeMetrics(
   const { bucket, sinceMs } = rangeToBucket(range);
   const since = sinceMs === 0 ? 0 : Date.now() - sinceMs;
 
+  // Spielerzahl aus den Services dieses Nodes, Proxies ausgeschlossen – aus
+  // demselben Grund wie in loadClusterMetrics. Sonst zeigte ausgerechnet der
+  // Node mit dem Proxy die Zahl des ganzen Netzwerks zusätzlich zu seinen
+  // eigenen Spielern.
   const rows = await query<Row>(
-    `SELECT ts, cpu_system, mem_used_mb, ram_used, ram_total, disk_used, disk_total,
-            services_count, players
-     FROM infra_node_metrics
-     WHERE node_id = ? AND bucket_seconds = ? AND ts >= ?
-     ORDER BY ts ASC`,
-    [nodeId, bucket, since]
+    `SELECT m.ts AS ts, m.cpu_system, m.mem_used_mb, m.ram_used, m.ram_total,
+            m.disk_used, m.disk_total, m.services_count,
+            COALESCE(p.players, 0) AS players
+     FROM infra_node_metrics m
+     LEFT JOIN (
+       SELECT sm.ts AS ts, SUM(sm.players) AS players
+       FROM infra_service_metrics sm
+       LEFT JOIN infra_service_live sl ON sl.service_name = sm.service_name
+       WHERE sm.node_id = ? AND sm.bucket_seconds = ? AND sm.ts >= ?
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%PROXY%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%BUNGEE%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%VELOCITY%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%WATERFALL%'
+       GROUP BY sm.ts
+     ) p ON p.ts = m.ts
+     WHERE m.node_id = ? AND m.bucket_seconds = ? AND m.ts >= ?
+     ORDER BY m.ts ASC`,
+    [nodeId, bucket, since, nodeId, bucket, since]
   );
   return rows.map((r) => ({
     t: Number(r.ts),
@@ -204,22 +220,38 @@ export async function loadClusterMetrics(range: MetricRange): Promise<ClusterMet
   const { bucket, sinceMs } = rangeToBucket(range);
   const since = sinceMs === 0 ? 0 : Date.now() - sinceMs;
 
+  // Die Spielerzahl kommt bewusst NICHT aus infra_node_metrics.players: dort
+  // steckt der Proxy mit drin, der bereits jeden Spieler des Netzwerks zählt –
+  // die Summe über alle Nodes war deshalb doppelt so hoch. Stattdessen aus den
+  // einzelnen Services, Proxies ausgeschlossen. Das rückt auch die Verläufe
+  // gerade, die vor dieser Änderung aufgezeichnet wurden.
   const rows = await query<Row>(
-    `SELECT ts,
-            AVG(NULLIF(cpu_system, -1)) AS cpu_avg,
-            MAX(NULLIF(cpu_system, -1)) AS cpu_max,
-            SUM(ram_used)   AS ram_used,
-            SUM(ram_total)  AS ram_total,
-            SUM(disk_used)  AS disk_used,
-            SUM(disk_total) AS disk_total,
-            SUM(services_count) AS services,
-            SUM(players) AS players,
+    `SELECT m.ts AS ts,
+            AVG(NULLIF(m.cpu_system, -1)) AS cpu_avg,
+            MAX(NULLIF(m.cpu_system, -1)) AS cpu_max,
+            SUM(m.ram_used)   AS ram_used,
+            SUM(m.ram_total)  AS ram_total,
+            SUM(m.disk_used)  AS disk_used,
+            SUM(m.disk_total) AS disk_total,
+            SUM(m.services_count) AS services,
+            COALESCE(MAX(p.players), 0) AS players,
             COUNT(*) AS nodes
-     FROM infra_node_metrics
-     WHERE bucket_seconds = ? AND ts >= ?
-     GROUP BY ts
-     ORDER BY ts ASC`,
-    [bucket, since]
+     FROM infra_node_metrics m
+     LEFT JOIN (
+       SELECT sm.ts AS ts, SUM(sm.players) AS players
+       FROM infra_service_metrics sm
+       LEFT JOIN infra_service_live sl ON sl.service_name = sm.service_name
+       WHERE sm.bucket_seconds = ? AND sm.ts >= ?
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%PROXY%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%BUNGEE%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%VELOCITY%'
+         AND UPPER(COALESCE(sl.environment, '')) NOT LIKE '%WATERFALL%'
+       GROUP BY sm.ts
+     ) p ON p.ts = m.ts
+     WHERE m.bucket_seconds = ? AND m.ts >= ?
+     GROUP BY m.ts
+     ORDER BY m.ts ASC`,
+    [bucket, since, bucket, since]
   );
   return rows.map((r) => ({
     t: Number(r.ts),

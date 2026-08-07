@@ -42,10 +42,10 @@ export default async function NewsDetailPage({ params }: Props) {
   const images = await loadNewsImages(id);
   const authors = post.authors.length > 0 ? post.authors : [{ name: post.authorName, uuid: null }];
 
-  // Das erste Bild steht als Aufmacher oben und wird deshalb nicht noch einmal
-  // mitten im Text gezeigt.
+  // Das erste Bild steht zusätzlich als Aufmacher oben. Im Text bleibt es
+  // trotzdem an seiner Stelle stehen – dort gehört es zu einem Absatz und wäre
+  // sonst aus dem Zusammenhang gerissen.
   const cover: NewsImage | undefined = images[0];
-  const inlineImages = cover ? images.slice(1) : images;
 
   const more = (await loadPublishedNews(4)).filter((p) => p.id !== post.id).slice(0, 3);
 
@@ -72,21 +72,16 @@ export default async function NewsDetailPage({ params }: Props) {
         )}
       </div>
 
-      {/* ── Aufmacherbild ── */}
+      {/* ── Aufmacherbild ──
+          Bewusst nur das Bild: keine Rundung, kein Rahmen, keine Unterschrift.
+          Dasselbe Bild steht weiter unten im Text nochmal, dort mit Beschreibung. */}
       {cover && (
-        <figure className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`/api/news/image/${cover.id}`}
-            alt={cover.caption || post.title}
-            className="max-h-[60vh] w-full object-cover"
-          />
-          {cover.caption && (
-            <figcaption className="border-t border-white/[0.06] px-4 py-2 text-xs text-neutral-500">
-              {cover.caption}
-            </figcaption>
-          )}
-        </figure>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/api/news/image/${cover.id}`}
+          alt={post.title}
+          className="max-h-[60vh] w-full object-cover"
+        />
       )}
 
       {/* ── Kopf ── */}
@@ -135,7 +130,12 @@ export default async function NewsDetailPage({ params }: Props) {
 
       {/* ── Beitrag ── */}
       <div className="mx-auto w-full max-w-3xl">
-        <McText text={post.body} images={inlineImages} className="text-[15px] text-neutral-300" />
+        <McText
+          text={post.body}
+          images={images}
+          headings={post.markdown}
+          className="text-[15px] text-neutral-300"
+        />
 
         {post.updatedAt && post.updatedAt !== post.createdAt && (
           <p className="mt-8 text-xs text-neutral-600">

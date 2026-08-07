@@ -6,6 +6,7 @@ import {
   loadPlayerStats,
   loadRecentPunishments,
   loadRecentAnticheatFlags,
+  loadModCounts,
 } from "@/lib/queries";
 import ModPanel from "@/components/mod/ModPanel";
 
@@ -15,7 +16,10 @@ export const metadata: Metadata = { title: "Mod-Panel – TryCity" };
 export default async function ModPage() {
   await requireMod();
 
-  const [requests, bans, playerStats, mutes, warns, kicks, anticheat] =
+  // Die Listen liefern nur den ersten Block; weitere holt das Panel bei Bedarf
+  // über /api/mod/list nach. Die Zähler kommen aus eigenen COUNT-Abfragen –
+  // vorher zeigten sie die Länge der gekappten Liste und blieben bei 300 stehen.
+  const [requests, bans, playerStats, mutes, warns, kicks, anticheat, counts] =
     await Promise.all([
       loadUnbanRequests().catch(() => []),
       loadAllBans().catch(() => []),
@@ -24,6 +28,9 @@ export default async function ModPage() {
       loadRecentPunishments("WARN").catch(() => []),
       loadRecentPunishments("KICK").catch(() => []),
       loadRecentAnticheatFlags().catch(() => []),
+      loadModCounts().catch(() => ({
+        mutes: 0, activeMutes: 0, warns: 0, kicks: 0, anticheat: 0,
+      })),
     ]);
 
   return (
@@ -42,6 +49,7 @@ export default async function ModPage() {
         warns={warns}
         kicks={kicks}
         anticheatFlags={anticheat}
+        counts={counts}
       />
     </div>
   );

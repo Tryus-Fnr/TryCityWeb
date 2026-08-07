@@ -134,21 +134,26 @@ function FeaturedPost({ post, coverSrc }: { post: NewsPost; coverSrc?: string })
       />
 
       <div className="flex flex-col p-5 sm:p-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <NewsTypeBadge type={post.type} />
-          <span className="text-xs text-neutral-500">{germanDate(post.createdAt)}</span>
+        {/* Der Text sitzt mittig neben dem Bild, Verfasser und Knopf ganz unten –
+            sonst klebt in der breiten Ansicht alles oben und darunter gähnt eine
+            Lücke über die volle Bildhöhe. */}
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <NewsTypeBadge type={post.type} />
+            <span className="text-xs text-neutral-500">{germanDate(post.createdAt)}</span>
+          </div>
+
+          <h2 className="mt-3 text-2xl font-bold leading-tight text-neutral-50 transition-colors group-hover:text-sky-300 sm:text-3xl">
+            {post.title}
+          </h2>
+
+          {teaser && (
+            <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-neutral-400">{teaser}</p>
+          )}
         </div>
 
-        <h2 className="mt-3 text-2xl font-bold leading-tight text-neutral-50 transition-colors group-hover:text-sky-300 sm:text-3xl">
-          {post.title}
-        </h2>
-
-        {teaser && (
-          <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-neutral-400">{teaser}</p>
-        )}
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <AuthorRow post={post} className="border-t-0 pt-0" />
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
+          <AuthorRow post={post} />
           <span className="rounded-lg bg-sky-400/15 px-4 py-2 text-sm font-semibold text-sky-300 ring-1 ring-sky-400/30 transition-colors group-hover:bg-sky-400/25">
             Weiterlesen
           </span>

@@ -22,6 +22,26 @@ type Edition = "java" | "bedrock";
 export default function JoinDialog() {
   const [open, setOpen] = useState(false);
   const [edition, setEdition] = useState<Edition>("java");
+  const [online, setOnline] = useState<number | null>(null);
+
+  // Spielerzahl für die Anzeige am Knopf. Schlägt es fehl, bleibt die Anzeige
+  // weg – lieber gar keine Zahl als eine falsche.
+  useEffect(() => {
+    let abgebrochen = false;
+    const laden = () =>
+      fetch("/api/stats/online")
+        .then((r) => r.json())
+        .then((d) => {
+          if (!abgebrochen && d.ok) setOnline(Number(d.online) || 0);
+        })
+        .catch(() => {});
+    laden();
+    const t = setInterval(laden, 60_000);
+    return () => {
+      abgebrochen = true;
+      clearInterval(t);
+    };
+  }, []);
 
   // Mit Escape schließen und das Wegscrollen hinter dem Fenster unterbinden.
   useEffect(() => {
@@ -40,18 +60,31 @@ export default function JoinDialog() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="group mt-8 inline-flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-6 py-3.5 backdrop-blur-sm transition-colors hover:border-sky-400/50 hover:bg-sky-400/15"
-      >
-        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-300">
-          Jetzt beitreten
-        </span>
-        <span className="font-mono text-base font-semibold text-white sm:text-lg">
-          {JAVA_ADDRESS}
-        </span>
-      </button>
+      <div className="relative mt-8 inline-block">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="group inline-flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-6 py-3.5 backdrop-blur-sm transition-colors hover:border-sky-400/50 hover:bg-sky-400/15"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-300">
+            Jetzt beitreten
+          </span>
+          <span className="font-mono text-base font-semibold text-white sm:text-lg">
+            {JAVA_ADDRESS}
+          </span>
+        </button>
+
+        {/* Spielerzahl als Plakette an der oberen rechten Ecke. */}
+        {online !== null && (
+          <span className="pointer-events-none absolute -right-2 -top-2.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-200 shadow-lg backdrop-blur-sm">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70 motion-reduce:animate-none" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            {online} online
+          </span>
+        )}
+      </div>
 
       {open && (
         <div

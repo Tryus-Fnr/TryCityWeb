@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bold, Italic, Underline, Strikethrough, Sparkles, Eraser,
-  ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X,
+  ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X, Heading,
 } from "lucide-react";
 import { LEGACY_COLORS, LEGACY_COLOR_NAMES, toSmallCaps } from "@/lib/mcformat";
 import {
@@ -48,6 +48,8 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
   });
   const [published, setPublished] = useState(post?.published ?? true);
   const [pinned, setPinned] = useState(post?.pinned ?? false);
+  // Artikel-Modus: Rauten am Zeilenanfang werden im Web zu Überschriften.
+  const [markdown, setMarkdown] = useState(post?.markdown ?? true);
 
   const [draftImages, setDraftImages] = useState<DraftImage[]>(() =>
     images.map((i) => ({
@@ -216,10 +218,83 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
   };
 
   const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    // Nur Text übernehmen – fremdes HTML würde den Baum unbrauchbar machen.
+    // Bild aus der Zwischenablage (Screenshot, „Bild kopieren" im Browser).
+    const files = [...(e.clipboardData.files ?? [])].filter((f) =>
+      f.type.startsWith("image/")
+    );
+    if (files.length > 0) {
+      e.preventDefault();
+      rememberCaret();
+      // Nacheinander, damit die Bilder in der Reihenfolge der Zwischenablage
+      // stehen und jedes seinen eigenen Index bekommt.
+      void (async () => {
+        for (const file of files) await addImage(file);
+      })();
+      return;
+    }
+
+    // Sonst nur Text übernehmen – fremdes HTML würde den Baum unbrauchbar machen.
     e.preventDefault();
     const text = e.clipboardData.getData("text/plain");
     if (text) insertNodeAtCaret(document.createTextNode(text));
+    syncBody();
+  };
+
+  // ── Cursorposition merken ─────────────────────────────────────────────────
+  //
+  // Ein Klick auf „Bild einfügen" oder der Dateidialog nehmen dem Textfeld den
+  // Fokus und damit die Auswahl. Ohne gemerkte Position landete das Bild
+  // anschließend am Anfang statt dort, wo der Cursor stand.
+
+  const savedRange = useRef<Range | null>(null);
+
+  const rememberCaret = useCallback(() => {
+    const root = editorRef.current;
+    const sel = window.getSelection();
+    if (!root || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (root.contains(range.commonAncestorContainer)) {
+      savedRange.current = range.cloneRange();
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", rememberCaret);
+    return () => document.removeEventListener("selectionchange", rememberCaret);
+  }, [rememberCaret]);
+
+  /** Stellt die gemerkte Position wieder her; sonst ans Ende des Textes. */
+  const restoreCaret = useCallback(() => {
+    const root = editorRef.current;
+    if (!root) return;
+    root.focus();
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = savedRange.current;
+    if (range && root.contains(range.commonAncestorContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    const end = document.createRange();
+    end.selectNodeContents(root);
+    end.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(end);
+  }, []);
+
+  // ── Überschriften ─────────────────────────────────────────────────────────
+
+  /**
+   * Beginnt eine Überschriften-Zeile an der Cursorposition. Steht der Cursor
+   * mitten in einer Zeile, wird zuerst umgebrochen – sonst wären die Rauten
+   * mittendrin und würden gar nicht als Überschrift zählen.
+   */
+  const insertHeading = (level: 1 | 2 | 3) => {
+    restoreCaret();
+    if (!atLineStart()) insertNodeAtCaret(document.createElement("br"));
+    insertNodeAtCaret(document.createTextNode("#".repeat(level) + " "));
+    rememberCaret();
     syncBody();
   };
 
@@ -248,8 +323,12 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
 
     const idx = nextImageIndex();
     setDraftImages((prev) => [...prev, { idx, caption: "", data: dataUrl }]);
-    editorRef.current?.focus();
+    // Erst die gemerkte Position wiederherstellen, dann einfügen. Ein bloßes
+    // focus() setzt den Cursor an den Anfang – genau deshalb landeten Bilder
+    // vorher oben statt an der Stelle, an der man stand.
+    restoreCaret();
     insertNodeAtCaret(makeImageNode(idx, dataUrl));
+    rememberCaret();
     syncBody();
   };
 
@@ -278,6 +357,7 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
       authorNames: authors.map((a) => a.trim()).filter(Boolean),
       published,
       pinned,
+      markdown,
       images: draftImages.map((i) => ({ idx: i.idx, caption: i.caption, data: i.data })),
     };
 
@@ -422,7 +502,16 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
             <Pin className="h-4 w-4" />
             {pinned ? "Angepinnt" : "Nicht angepinnt"}
           </Toggle>
+          <Toggle active={markdown} onClick={() => setMarkdown((v) => !v)}>
+            <Heading className="h-4 w-4" />
+            {markdown ? "Artikel mit Überschriften" : "Reiner Text"}
+          </Toggle>
         </div>
+        <p className="-mt-1 text-xs text-neutral-600 sm:col-span-2">
+          {markdown
+            ? "Zeilen, die mit #, ## oder ### beginnen, werden auf der Website zu Überschriften. Ingame bleibt die Raute als Zeichen stehen."
+            : "Rauten bleiben überall einfache Zeichen – für Beiträge, in denen # etwas anderes bedeutet."}
+        </p>
       </div>
 
       {/* ── Werkzeugleiste ── */}
@@ -446,6 +535,23 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
           <ToolButton title="Small Caps (<small>…</small>)" onClick={applySmallCapsToSelection}>
             <span className="text-xs font-bold tracking-tight">Sᴍ</span>
           </ToolButton>
+
+          {/* Überschriften nur im Artikel-Modus – sonst wären die Rauten
+              schlicht Zeichen und die Knöpfe eine Falle. */}
+          {markdown && (
+            <>
+              <Divider />
+              {([1, 2, 3] as const).map((level) => (
+                <ToolButton
+                  key={level}
+                  title={`Überschrift ${level} (${"#".repeat(level)})`}
+                  onClick={() => insertHeading(level)}
+                >
+                  <span className="text-xs font-bold tracking-tight">H{level}</span>
+                </ToolButton>
+              ))}
+            </>
+          )}
 
           <Divider />
 
@@ -599,7 +705,12 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
           <Eye className="h-3.5 w-3.5" />
           Vorschau
         </div>
-        <McText text={body} images={previewImages} className="text-[15px]" />
+        <McText
+          text={body}
+          images={previewImages}
+          headings={markdown}
+          className="text-[15px]"
+        />
       </div>
 
       {/* ── Aktionen ── */}
@@ -711,6 +822,29 @@ function Toggle({
 
 function Divider() {
   return <span className="mx-1 h-5 w-px bg-white/10" />;
+}
+
+/**
+ * Steht der Cursor am Anfang einer Zeile?
+ * Geprüft wird das Zeichen davor: Zeilenanfang ist es, wenn dort nichts mehr
+ * kommt oder ein Umbruch steht.
+ */
+function atLineStart(): boolean {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return true;
+  const range = sel.getRangeAt(0);
+  const node = range.startContainer;
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    const before = (node.textContent ?? "").slice(0, range.startOffset);
+    if (before.length > 0) return before.endsWith("\n");
+    // Am Anfang des Textknotens: auf den vorherigen Knoten schauen.
+    const prev = node.previousSibling;
+    return prev === null || prev.nodeName === "BR";
+  }
+
+  const prev = node.childNodes[range.startOffset - 1];
+  return prev === undefined || prev === null || prev.nodeName === "BR";
 }
 
 /** Fügt einen Knoten an der aktuellen Cursorposition ein. */

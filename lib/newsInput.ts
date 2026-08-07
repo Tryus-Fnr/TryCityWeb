@@ -97,6 +97,7 @@ export async function parseNewsInput(
       authorNames,
       published: body.published !== false,
       pinned: body.pinned === true,
+      markdown: body.markdown !== false,
       images,
     },
   };
