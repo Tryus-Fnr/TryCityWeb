@@ -6,6 +6,7 @@ import {
   LIMITS,
   type NewsAuthor,
   type NewsImage,
+  type ReactionCount,
   type NewsImageInput,
   type NewsInput,
   type NewsPost,
@@ -67,9 +68,92 @@ function mapRow(r: Row): NewsPost {
     markdown: r.markdown === null || r.markdown === undefined ? true : Number(r.markdown) === 1,
     imageCount: Number(r.image_count ?? 0),
     coverId: r.cover_id !== null && r.cover_id !== undefined ? Number(r.cover_id) : null,
+    // Wird von attachReactions() nachgereicht.
+    reactions: [],
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+/**
+ * Zählt die Reaktionen zu mehreren Beiträgen in EINER Abfrage nach.
+ * Fehlt die Tabelle noch, bleibt es bei leeren Listen – die Seite lädt trotzdem.
+ */
+async function attachReactions(posts: NewsPost[]): Promise<NewsPost[]> {
+  if (posts.length === 0) return posts;
+  try {
+    const ids = posts.map((p) => p.id);
+    const rows = await query<{ post_id: number; emoji: string; n: string }>(
+      `SELECT post_id, emoji, COUNT(*) AS n
+       FROM smpg_news_reactions
+       WHERE post_id IN (${ids.map(() => "?").join(",")})
+       GROUP BY post_id, emoji
+       ORDER BY post_id ASC, n DESC, emoji ASC`,
+      ids
+    );
+    if (rows.length === 0) return posts;
+    const byPost = new Map<number, ReactionCount[]>();
+    for (const r of rows) {
+      const list = byPost.get(Number(r.post_id)) ?? [];
+      list.push({ emoji: r.emoji, count: Number(r.n) });
+      byPost.set(Number(r.post_id), list);
+    }
+    for (const p of posts) p.reactions = byPost.get(p.id) ?? [];
+    return posts;
+  } catch {
+    return posts;
+  }
+}
+
+/** Reaktionen eines Beitrags plus die eigene, falls angemeldet. */
+export async function loadPostReactions(
+  postId: number,
+  uuid: string | null
+): Promise<{ counts: ReactionCount[]; own: string | null }> {
+  try {
+    const [counts, mine] = await Promise.all([
+      query<{ emoji: string; n: string }>(
+        `SELECT emoji, COUNT(*) AS n FROM smpg_news_reactions
+         WHERE post_id = ? GROUP BY emoji ORDER BY n DESC, emoji ASC`,
+        [postId]
+      ),
+      uuid
+        ? query<{ emoji: string }>(
+            `SELECT emoji FROM smpg_news_reactions WHERE post_id = ? AND uuid = ? LIMIT 1`,
+            [postId, uuid]
+          )
+        : Promise.resolve([]),
+    ]);
+    return {
+      counts: counts.map((r) => ({ emoji: r.emoji, count: Number(r.n) })),
+      own: mine.length > 0 ? mine[0].emoji : null,
+    };
+  } catch {
+    return { counts: [], own: null };
+  }
+}
+
+/**
+ * Setzt, ändert oder entfernt die Reaktion eines Spielers.
+ *
+ * `emoji === null` nimmt sie zurück. Da (post_id, uuid) der Primärschlüssel
+ * ist, ersetzt ein erneutes Setzen die vorherige – mehr als eine Reaktion je
+ * Person und Beitrag kann so gar nicht entstehen.
+ */
+export async function setPostReaction(
+  postId: number,
+  uuid: string,
+  emoji: string | null
+): Promise<void> {
+  if (emoji === null) {
+    await exec(`DELETE FROM smpg_news_reactions WHERE post_id = ? AND uuid = ?`, [postId, uuid]);
+    return;
+  }
+  await exec(
+    `INSERT INTO smpg_news_reactions (post_id, uuid, emoji) VALUES (?,?,?)
+     ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), created_at = CURRENT_TIMESTAMP`,
+    [postId, uuid, emoji]
+  );
 }
 
 /**
@@ -134,7 +218,7 @@ export async function loadPublishedNews(limit = 50, type?: string): Promise<News
        LIMIT ${Math.max(1, Math.min(200, Math.floor(limit)))}`,
       params
     );
-    return attachAuthors(rows.map(mapRow));
+    return attachReactions(await attachAuthors(rows.map(mapRow)));
   } catch {
     return [];
   }
@@ -146,7 +230,7 @@ export async function loadAllNews(): Promise<NewsPost[]> {
     const rows = await query<Row>(
       `${SELECT_POST} ORDER BY n.pinned DESC, n.created_at DESC, n.id DESC LIMIT 500`
     );
-    return attachAuthors(rows.map(mapRow));
+    return attachReactions(await attachAuthors(rows.map(mapRow)));
   } catch {
     return [];
   }
@@ -166,7 +250,7 @@ export async function loadNewsPost(
       [id]
     );
     if (rows.length === 0) return null;
-    return (await attachAuthors([mapRow(rows[0])]))[0];
+    return (await attachReactions(await attachAuthors([mapRow(rows[0])])))[0];
   } catch {
     return null;
   }

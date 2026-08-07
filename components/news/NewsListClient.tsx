@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { NEWS_TYPES, authorLine, germanDate, type NewsPost } from "@/lib/newsTypes";
+import { useMemo, useState } from "react";
+import { NEWS_TYPES, germanDate, type NewsPost } from "@/lib/newsTypes";
 import { mcPlainText, shorten } from "@/lib/mcformat";
-import NewsCard, { AuthorRow, NewsCover } from "./NewsCard";
+import NewsCard, { AuthorRow, NewsCover, TopReactions } from "./NewsCard";
 import NewsTypeBadge from "./NewsTypeBadge";
 
 const PAGE_SIZE = 9;
@@ -32,11 +32,6 @@ export default function NewsListClient({
     [posts, active]
   );
 
-  // Filterwechsel beginnt wieder auf Seite eins.
-  useEffect(() => {
-    setPage(0);
-  }, [active]);
-
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const p of posts) map.set(p.type, (map.get(p.type) ?? 0) + 1);
@@ -47,13 +42,15 @@ export default function NewsListClient({
   const rest = featured ? filtered.slice(1) : filtered;
 
   const pageCount = Math.max(1, Math.ceil(rest.length / PAGE_SIZE));
-  const shown = rest.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Nach einem Filterwechsel kann die alte Seitenzahl ins Leere zeigen.
+  const safePage = Math.min(page, pageCount - 1);
+  const shown = rest.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-6">
       {/* ── Filter ── */}
       <div className="flex flex-wrap gap-2">
-        <FilterChip active={active === null} onClick={() => setActive(null)}>
+        <FilterChip active={active === null} onClick={() => { setActive(null); setPage(0); }}>
           Alle
         </FilterChip>
         {NEWS_TYPES.filter((t) => counts.has(t.id)).map((t) => (
@@ -61,7 +58,7 @@ export default function NewsListClient({
             key={t.id}
             active={active === t.id}
             color={t.color}
-            onClick={() => setActive(active === t.id ? null : t.id)}
+            onClick={() => { setActive(active === t.id ? null : t.id); setPage(0); }}
           >
             {t.label}
           </FilterChip>
@@ -98,9 +95,9 @@ export default function NewsListClient({
                       setPage(i);
                       window.scrollTo({ top: 0, behavior: "smooth" });
                     }}
-                    aria-current={i === page ? "page" : undefined}
+                    aria-current={i === safePage ? "page" : undefined}
                     className={`min-w-9 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-                      i === page
+                      i === safePage
                         ? "bg-sky-400/15 text-sky-300 ring-1 ring-sky-400/40"
                         : "text-neutral-400 ring-1 ring-white/10 hover:bg-white/5"
                     }`}
@@ -153,7 +150,10 @@ function FeaturedPost({ post, coverSrc }: { post: NewsPost; coverSrc?: string })
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
-          <AuthorRow post={post} />
+          <div className="flex min-w-0 items-center gap-3">
+            <AuthorRow post={post} />
+            <TopReactions post={post} />
+          </div>
           <span className="rounded-lg bg-sky-400/15 px-4 py-2 text-sm font-semibold text-sky-300 ring-1 ring-sky-400/30 transition-colors group-hover:bg-sky-400/25">
             Weiterlesen
           </span>

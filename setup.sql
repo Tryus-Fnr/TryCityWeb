@@ -75,6 +75,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_images` TO 'try
 -- Weitere Verfasser eines Beitrags. Die Tabelle legt das Plugin an (NewsBridge);
 -- smpg_news.author_name bleibt der Hauptautor, damit ingame alles bleibt wie es war.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_authors` TO 'trycity_web'@'localhost';
+-- Reaktionen auf Beiträge. Reine Website-Angelegenheit, ingame gibt es sie nicht.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_reactions` TO 'trycity_web'@'localhost';
 
 -- Preis-Verwaltung im Admin-Bereich: dauerhafte Einstellungen und Metas.
 -- Bewusst ohne DELETE – aus dem Web wird nichts gelöscht, nur geändert und

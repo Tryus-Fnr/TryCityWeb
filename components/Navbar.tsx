@@ -19,7 +19,7 @@ const MARKT_TABS = [
 ];
 
 const ADMIN_TABS = [
-  { href: "/admin/news", label: "Neuigkeiten",  desc: "Beiträge schreiben & bearbeiten", Icon: Newspaper },
+  { href: "/admin/news", label: "Blog",  desc: "Beiträge schreiben & bearbeiten", Icon: Newspaper },
   { href: "/infra",     label: "Infrastruktur", desc: "VPS- & Server-Auslastung",   Icon: Server    },
   { href: "/stats",     label: "Server-Stats",  desc: "Spielerzahlen-Verlauf",      Icon: BarChart2 },
   { href: "/servermap", label: "Server-Karte",  desc: "Interaktive Regionskarte",   Icon: Map       },
@@ -154,10 +154,10 @@ export default function Navbar({ session }: Props) {
             )}
           </div>
 
-          {/* Neuigkeiten */}
+          {/* Blog */}
           <Link href="/news" className={topLinkClass(isActive("/news"))}>
             <Newspaper className="h-3.5 w-3.5" />
-            Neuigkeiten
+            Blog
           </Link>
 
           {/* Regelwerk */}

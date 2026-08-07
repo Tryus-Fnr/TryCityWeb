@@ -15,7 +15,10 @@ import McText from "@/components/news/McText";
 import NewsTypeBadge from "@/components/news/NewsTypeBadge";
 import AuthorAvatar from "@/components/news/AuthorAvatar";
 import NewsCard from "@/components/news/NewsCard";
+import ReactionBar from "@/components/news/ReactionBar";
 import { SetBreadcrumb } from "@/components/Breadcrumbs";
+import { getSession } from "@/lib/session";
+import { loadPostReactions } from "@/lib/news";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +51,10 @@ export default async function NewsDetailPage({ params }: Props) {
   const cover: NewsImage | undefined = images[0];
 
   const more = (await loadPublishedNews(4)).filter((p) => p.id !== post.id).slice(0, 3);
+
+  // Reaktionen samt eigener – reagieren geht nur angemeldet.
+  const sessionUuid = (await getSession())?.uuid ?? null;
+  const reactions = await loadPostReactions(post.id, sessionUuid);
 
   return (
     <article className="flex flex-col gap-8">
@@ -142,6 +149,13 @@ export default async function NewsDetailPage({ params }: Props) {
             Zuletzt bearbeitet am {germanDate(post.updatedAt)}
           </p>
         )}
+
+        <ReactionBar
+          postId={post.id}
+          initialCounts={reactions.counts}
+          initialOwn={reactions.own}
+          loggedIn={sessionUuid !== null}
+        />
       </div>
 
       {/* ── Weitere Beiträge ── */}

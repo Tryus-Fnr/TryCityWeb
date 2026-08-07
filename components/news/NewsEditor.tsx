@@ -361,11 +361,14 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
       images: draftImages.map((i) => ({ idx: i.idx, caption: i.caption, data: i.data })),
     };
 
+    const serialisiert = JSON.stringify(payload);
+    const payloadBytes = new Blob([serialisiert]).size;
+
     try {
       const res = await fetch(post ? `/api/news/${post.id}` : "/api/news", {
         method: post ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: serialisiert,
       });
 
       // Antwort erst als Text lesen: bei einem Fehler außerhalb der Route
@@ -381,6 +384,15 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
       }
 
       if (json === null) {
+        // 413 kommt vom Webserver davor, nicht von der Anwendung – im
+        // Anwendungs-Log steht dazu nichts, deshalb hier der klare Hinweis.
+        if (res.status === 413) {
+          setError(
+            `Der Beitrag ist mit ${formatMb(payloadBytes)} zu groß für den Webserver. ` +
+              "Nimm weniger oder kleinere Bilder – oder erhöhe client_max_body_size in der nginx-Konfiguration."
+          );
+          return;
+        }
         const kurz = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
         setError(
           `Der Server hat mit HTTP ${res.status} geantwortet, aber ohne verwertbare Fehlermeldung. ` +
@@ -870,6 +882,11 @@ function atLineStart(): boolean {
 
   const prev = node.childNodes[range.startOffset - 1];
   return prev === undefined || prev === null || prev.nodeName === "BR";
+}
+
+/** Bytes lesbar machen: 13421772 → „12,8 MB". */
+function formatMb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB`;
 }
 
 /** Fügt einen Knoten an der aktuellen Cursorposition ein. */

@@ -27,6 +27,21 @@ export function isNewsType(id: string): id is NewsTypeId {
   return NEWS_TYPES.some((t) => t.id === id);
 }
 
+/**
+ * Erlaubte Reaktionen auf einen Beitrag – nur auf der Website, ingame gibt es
+ * dafür nichts. Die Liste ist bewusst fest: sie wird auch serverseitig geprüft,
+ * damit über die Schnittstelle nichts Beliebiges in der Datenbank landet.
+ */
+export const REACTIONS = ["🔥", "😍", "😳", "🤮", "💩"] as const;
+export type Reaction = (typeof REACTIONS)[number];
+
+export function isReaction(v: string): v is Reaction {
+  return (REACTIONS as readonly string[]).includes(v);
+}
+
+/** Anzahl je Emoji, absteigend sortiert. */
+export type ReactionCount = { emoji: string; count: number };
+
 /** Ein Verfasser eines Beitrags. */
 export type NewsAuthor = {
   name: string;
@@ -66,6 +81,8 @@ export type NewsPost = {
    * sie viel zu schwer.
    */
   coverId: number | null;
+  /** Reaktionen, häufigste zuerst. In der Übersicht werden die ersten zwei gezeigt. */
+  reactions: ReactionCount[];
   createdAt: string;
   updatedAt: string;
 };

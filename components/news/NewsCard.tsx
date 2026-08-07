@@ -47,7 +47,10 @@ export default function NewsCard({ post, coverSrc }: { post: NewsPost; coverSrc?
 
         {/* mt-auto: bei unterschiedlich langen Anrissen sitzt die Zeile trotzdem
             bei allen Karten einer Reihe auf gleicher Höhe unten. */}
-        <AuthorRow post={post} className="mt-auto border-t border-white/[0.06] pt-3" />
+        <div className="mt-auto flex items-center gap-3 border-t border-white/[0.06] pt-3">
+          <AuthorRow post={post} className="min-w-0 flex-1" />
+          <TopReactions post={post} />
+        </div>
       </div>
     </Link>
   );
@@ -88,6 +91,25 @@ export function NewsCover({
         loading={priority ? "eager" : "lazy"}
         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
       />
+    </div>
+  );
+}
+
+/**
+ * Die zwei häufigsten Reaktionen – nur Emoji und Zahl, bewusst schlicht.
+ * Ohne Reaktionen bleibt die Stelle leer.
+ */
+export function TopReactions({ post }: { post: NewsPost }) {
+  const top = (post.reactions ?? []).slice(0, 2);
+  if (top.length === 0) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      {top.map((r) => (
+        <span key={r.emoji} className="flex items-center gap-1 text-sm text-neutral-400">
+          <span>{r.emoji}</span>
+          <span className="tabular-nums">{r.count}</span>
+        </span>
+      ))}
     </div>
   );
 }
