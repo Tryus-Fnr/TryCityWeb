@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCount, formatMaterialName, formatMoney, formatPct } from "@/lib/format";
+import { buildHaystack, matchesHaystack } from "@/lib/itemNames";
 import ItemIcon from "@/components/ItemIcon";
 
 type Item = {
@@ -11,7 +12,10 @@ type Item = {
   startValue: number | null;
   minPrice: number | null;
   maxPrice: number | null;
-  yesterday: number | null;
+  /** Preis beim vorherigen Anpassungslauf */
+  previous: number | null;
+  /** Deutscher Item-Name, kommt aus der Schnittstelle mit */
+  de?: string | null;
 };
 
 type SparklinePoint = { day: string; price: number };
@@ -55,17 +59,22 @@ export default function ItemBrowser() {
       .catch(() => {/* silent */});
   }, []);
 
+  // Suchtext je Item einmal vorbereiten, nicht bei jedem Tastendruck neu.
+  const haystacks = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of items ?? []) map.set(i.material, buildHaystack(i.material, i.de));
+    return map;
+  }, [items]);
+
   const filtered = useMemo(() => {
     if (!items) return [];
-    const q = search.trim().toLowerCase().replace(/ /g, "_");
-    let list = items.filter(
-      (i) =>
-        q.length === 0 ||
-        i.material.toLowerCase().includes(q) ||
-        formatMaterialName(i.material).toLowerCase().includes(search.trim().toLowerCase())
+    // Deutsch und Englisch gleichzeitig, genau wie im Spiel: "Eichenholzbretter",
+    // "oak planks" und "holz eichen" führen alle zum selben Item.
+    let list = items.filter((i) =>
+      matchesHaystack(haystacks.get(i.material) ?? i.material.toLowerCase(), search)
     );
     const changeOf = (i: Item) =>
-      i.yesterday && i.yesterday > 0 ? Math.abs((i.price - i.yesterday) / i.yesterday) : 0;
+      i.previous && i.previous > 0 ? Math.abs((i.price - i.previous) / i.previous) : 0;
     list = [...list];
     switch (sort) {
       case "price-desc": list.sort((a, b) => b.price - a.price); break;
@@ -80,7 +89,7 @@ export default function ItemBrowser() {
                          ); break;
     }
     return list;
-  }, [items, search, sort, sold48h]);
+  }, [items, search, sort, sold48h, haystacks]);
 
   // Reset page wenn sich Suche/Sortierung ändert
   useEffect(() => { setPage(0); }, [search, sort]);
@@ -95,7 +104,7 @@ export default function ItemBrowser() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Item suchen…"
+          placeholder="Item suchen (deutsch oder englisch)…"
           className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm outline-none placeholder:text-neutral-600 focus:border-sky-400/50 sm:max-w-xs"
         />
         <div className="flex flex-wrap gap-2">
@@ -132,8 +141,8 @@ export default function ItemBrowser() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {paged.map((item) => {
               const change =
-                item.yesterday && item.yesterday > 0
-                  ? ((item.price - item.yesterday) / item.yesterday) * 100
+                item.previous && item.previous > 0
+                  ? ((item.price - item.previous) / item.previous) * 100
                   : null;
               const spark = sparklines[item.material] ?? [];
               return (
@@ -155,10 +164,10 @@ export default function ItemBrowser() {
                   <div className="mt-1 flex items-center justify-between text-xs">
                     {change !== null && Math.abs(change) >= 0.05 ? (
                       <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
-                        {formatPct(change)} <span className="text-neutral-600">24h</span>
+                        {formatPct(change)} <span className="text-neutral-600">12h</span>
                       </span>
                     ) : (
-                      <span className="text-neutral-600">± 0 % 24h</span>
+                      <span className="text-neutral-600">± 0 % 12h</span>
                     )}
                     {/* Bei "Meist verkauft" die Zahl zeigen, nach der sortiert wird –
                         eine Rangliste ohne den Wert dahinter ist nicht nachvollziehbar. */}

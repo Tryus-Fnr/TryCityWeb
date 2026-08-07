@@ -8,7 +8,6 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  BarChart,
   Line,
   ReferenceArea,
   ReferenceLine,
@@ -17,7 +16,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatMaterialName, formatMoney, formatTs } from "@/lib/format";
+import { formatCount, formatMaterialName, formatMoney, formatTs } from "@/lib/format";
+import { volumeAverages } from "@/lib/volumeAverages";
 
 type Meta = {
   id: number;
@@ -110,7 +110,10 @@ export default function ItemDetail({
   const [data, setData] = useState<Detail | null>(null);
   const [market, setMarket] = useState<MarketPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Auktionshaus und Kaufauftrag sind anfangs aus: gefragt ist hier fast immer
+  // der Shoppreis, und drei Kurven auf drei Achsen sind beim Aufschlagen zu viel.
+  // Ein Klick auf die Legende blendet sie wieder ein.
+  const [hidden, setHidden] = useState<Set<string>>(new Set(["avgAuction", "avgOrder"]));
   // Jede Serie auf ihrer eigenen Y-Achse. Nötig, weil ein Shoppreis von $0,01 neben
   // einem Auktionsschnitt von $500 auf einer gemeinsamen Achse eine flache Linie wäre.
   const [splitScales, setSplitScales] = useState(true);
@@ -199,6 +202,27 @@ export default function ItemDetail({
   const lastTs = data?.history[data.history.length - 1]?.ts ?? null;
   const visibleChanges =
     data?.changes.filter((c) => firstTs !== null && c.changedAt >= firstTs) ?? [];
+
+  /**
+   * Die beiden Volumen-Durchschnitte, nach denen sich der Preis richtet.
+   * Ihre Kreuzung ist genau die Stelle, an der die Preiskurve dreht.
+   */
+  const volumeAvg = useMemo(
+    () => (data?.ok ? volumeAverages(data.history) : []),
+    [data]
+  );
+
+  /** Balken und Durchschnitte in einer Reihe, damit sie eine X-Achse teilen. */
+  const volumeData = useMemo(() => {
+    if (!data?.ok) return [];
+    const byTs = new Map(volumeAvg.map((a) => [a.ts, a]));
+    return data.history.map((h) => {
+      const a = byTs.get(h.ts);
+      // Die ersten Läufe haben noch kein volles 24h-Fenster – dort bleibt die
+      // Linie bewusst leer, statt einen erfundenen Wert zu zeigen.
+      return { ...h, shortAvg: a?.shortAvg ?? null, longAvg: a?.longAvg ?? null };
+    });
+  }, [data, volumeAvg]);
 
   /** Metas als schattierte Bänder im Graphen – laufende und bereits beendete. */
   const metaBands = useMemo(() => {
@@ -544,11 +568,29 @@ export default function ItemDetail({
       {/* Volumen-Graph (bleibt separat) */}
       {data?.ok && data.history.length > 0 && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <h2 className="mb-2 px-2 text-sm font-medium text-neutral-400">
-            Verkauftes Volumen pro Lauf
-          </h2>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-2">
+            <h2 className="text-sm font-medium text-neutral-400">Verkauftes Volumen pro Lauf</h2>
+            {volumeAvg.length > 0 && (
+              <div className="flex items-center gap-4 text-[11px] text-neutral-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-0.5 w-4 rounded bg-[#60a5fa]" />
+                  kurz (2 Tage)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-0 w-4 border-t-2 border-dashed border-[#94a3b8]" />
+                  lang (14 Tage)
+                </span>
+              </div>
+            )}
+          </div>
+          {volumeAvg.length > 0 && (
+            <p className="mb-2 px-2 text-[11px] text-neutral-600">
+              Wo die kurze Linie die lange kreuzt, dreht der Preis: darüber wird mehr verkauft
+              als üblich und der Preis sinkt, darunter steigt er.
+            </p>
+          )}
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={data.history} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+            <ComposedChart data={volumeData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
               <XAxis
                 dataKey="ts"
@@ -570,11 +612,33 @@ export default function ItemDetail({
                   color: "#ededed",
                 }}
                 labelFormatter={(ts) => formatTs(String(ts))}
-                formatter={(value) => [String(value), "Verkauft"]}
+                formatter={(value, name) => [
+                  formatCount(Math.round(Number(value))),
+                  name === "sold" ? "Verkauft" : name === "shortAvg" ? "Ø kurz" : "Ø lang",
+                ]}
                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
               />
               <Bar dataKey="sold" fill="rgba(52,211,153,0.5)" radius={[3, 3, 0, 0]} />
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="longAvg"
+                stroke="#94a3b8"
+                strokeWidth={1.6}
+                strokeDasharray="5 4"
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="shortAvg"
+                stroke="#60a5fa"
+                strokeWidth={1.8}
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       )}

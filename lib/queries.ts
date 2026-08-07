@@ -16,7 +16,8 @@ export type ItemRow = {
   startValue: number | null;
   minPrice: number | null;
   maxPrice: number | null;
-  yesterday: number | null;
+  /** Preis beim vorherigen Anpassungslauf – Grundlage der angezeigten Änderung. */
+  previous: number | null;
 };
 
 export async function loadItems(): Promise<ItemRow[]> {
@@ -34,16 +35,18 @@ export async function loadItems(): Promise<ItemRow[]> {
      ORDER BY s.material ASC`
   );
 
-  // Preis von "vor 24h": letzter Historie-Eintrag, der älter als 1 Tag ist
-  const yRows = await query<{ material: string; price: string }>(
-    `SELECT h.material, h.price
-     FROM smpg_price_history h
-     JOIN (SELECT material, MAX(id) AS mid
-           FROM smpg_price_history
-           WHERE ts <= NOW() - INTERVAL 1 DAY
-           GROUP BY material) t ON h.id = t.mid`
+  // Preis beim VORHERIGEN Lauf – schlicht der zweitneueste Historie-Eintrag.
+  // Bewusst nicht "älter als 24 Stunden": fällt ein Lauf mal aus oder wird einer
+  // von Hand angestoßen, verglich das vorher zwei Stände, die gar nicht
+  // aufeinander folgen. So ist es immer genau ein Lauf Unterschied.
+  const prevRows = await query<{ material: string; price: string }>(
+    `SELECT material, price FROM (
+       SELECT material, price,
+              ROW_NUMBER() OVER (PARTITION BY material ORDER BY ts DESC, id DESC) AS rn
+       FROM smpg_price_history
+     ) t WHERE rn = 2`
   );
-  const yesterday = new Map(yRows.map((r) => [r.material, Number(r.price)]));
+  const previous = new Map(prevRows.map((r) => [r.material, Number(r.price)]));
 
   return rows.map((r) => ({
     material: r.material,
@@ -51,7 +54,7 @@ export async function loadItems(): Promise<ItemRow[]> {
     startValue: r.start_value !== null ? Number(r.start_value) : null,
     minPrice: r.min_price !== null ? Number(r.min_price) : null,
     maxPrice: r.max_price !== null ? Number(r.max_price) : null,
-    yesterday: yesterday.get(r.material) ?? null,
+    previous: previous.get(r.material) ?? null,
   }));
 }
 
