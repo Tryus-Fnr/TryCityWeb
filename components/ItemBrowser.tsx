@@ -23,7 +23,10 @@ type SparklinePoint = { day: string; price: number };
 const SORTS = [
   { key: "price-desc", label: "Höchster Preis" },
   { key: "price-asc", label: "Niedrigster Preis" },
-  { key: "change", label: "Größte Änderung" },
+  // Zwei Blickwinkel auf dieselbe Bewegung: prozentual bringt günstige Items
+  // nach oben (ein Cent auf drei sind 33 %), in Dollar die teuren.
+  { key: "change-pct", label: "Größte Änderung in %" },
+  { key: "change-abs", label: "Größte Änderung in $" },
   { key: "sold48h", label: "Meist verkauft 48h" },
   { key: "name", label: "Name A–Z" },
 ] as const;
@@ -76,13 +79,24 @@ export default function ItemBrowser() {
     let list = items.filter((i) =>
       matchesHaystack(haystacks.get(i.material) ?? i.material.toLowerCase(), search)
     );
-    const changeOf = (i: Item) =>
+    // Beide nach dem BETRAG der Änderung: ein starker Rückgang ist genauso
+    // interessant wie ein starker Anstieg.
+    const changePct = (i: Item) =>
       i.previous && i.previous > 0 ? Math.abs((i.price - i.previous) / i.previous) : 0;
+    const changeAbs = (i: Item) =>
+      i.previous && i.previous > 0 ? Math.abs(i.price - i.previous) : 0;
     list = [...list];
     switch (sort) {
       case "price-desc": list.sort((a, b) => b.price - a.price); break;
       case "price-asc":  list.sort((a, b) => a.price - b.price); break;
-      case "change":     list.sort((a, b) => changeOf(b) - changeOf(a)); break;
+      case "change-pct": list.sort((a, b) =>
+                           (changePct(b) - changePct(a)) ||
+                           nameOf(a).localeCompare(nameOf(b), "de")
+                         ); break;
+      case "change-abs": list.sort((a, b) =>
+                           (changeAbs(b) - changeAbs(a)) ||
+                           nameOf(a).localeCompare(nameOf(b), "de")
+                         ); break;
       case "name":       list.sort((a, b) => nameOf(a).localeCompare(nameOf(b), "de")); break;
       // Bei gleicher Stückzahl (z.B. beide 0) nach Namen – sonst springt die
       // Reihenfolge bei jedem Neuladen, weil sort() dort nichts festlegt.
@@ -94,11 +108,11 @@ export default function ItemBrowser() {
     return list;
   }, [items, search, sort, sold48h, haystacks]);
 
-  // Reset page wenn sich Suche/Sortierung ändert
-  useEffect(() => { setPage(0); }, [search, sort]);
-
   const pageCount = Math.ceil(filtered.length / PAGE_SIZE);
-  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Auf Seite eins zurück setzen Suche und Sortierung direkt im Klick; hier wird
+  // nur abgefangen, dass eine gefilterte Liste kürzer ist als die alte Seitenzahl.
+  const safePage = Math.min(page, Math.max(0, pageCount - 1));
+  const paged = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,7 +120,7 @@ export default function ItemBrowser() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
           placeholder="Item suchen (deutsch oder englisch)…"
           className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm outline-none placeholder:text-neutral-600 focus:border-sky-400/50 sm:max-w-xs"
         />
@@ -114,7 +128,7 @@ export default function ItemBrowser() {
           {SORTS.map((s) => (
             <button
               key={s.key}
-              onClick={() => setSort(s.key)}
+              onClick={() => { setSort(s.key); setPage(0); }}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 sort === s.key
                   ? "bg-sky-500/15 text-sky-300"
@@ -147,6 +161,9 @@ export default function ItemBrowser() {
                 item.previous && item.previous > 0
                   ? ((item.price - item.previous) / item.previous) * 100
                   : null;
+              // Auch als Betrag, damit die Sortierung „in $" sichtbar wird.
+              const changeAbs =
+                item.previous && item.previous > 0 ? item.price - item.previous : null;
               const spark = sparklines[item.material] ?? [];
               return (
                 <Link
@@ -170,7 +187,14 @@ export default function ItemBrowser() {
                   <div className="mt-1 flex items-center justify-between text-xs">
                     {change !== null && Math.abs(change) >= 0.05 ? (
                       <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
-                        {formatPct(change)} <span className="text-neutral-600">12h</span>
+                        {formatPct(change)}
+                        {changeAbs !== null && (
+                          <span className="text-neutral-500">
+                            {" "}
+                            ({changeAbs > 0 ? "+" : "−"}${formatMoney(Math.abs(changeAbs))})
+                          </span>
+                        )}{" "}
+                        <span className="text-neutral-600">12h</span>
                       </span>
                     ) : (
                       <span className="text-neutral-600">± 0 % 12h</span>
@@ -193,7 +217,7 @@ export default function ItemBrowser() {
 
           {/* Pagination */}
           {pageCount > 1 && (
-            <Pagination page={page} pageCount={pageCount} total={filtered.length} onPage={setPage} />
+            <Pagination page={safePage} pageCount={pageCount} total={filtered.length} onPage={setPage} />
           )}
         </>
       )}
