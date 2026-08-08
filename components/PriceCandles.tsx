@@ -1,39 +1,9 @@
+import { hasWick, toCandles } from "@/lib/candles";
 import type { SparklinePoint } from "@/lib/queries";
 
 const UP = "#34d399";
 const DOWN = "#f87171";
 const FLAT = "#6b7280";
-
-/** Eine Tageskerze: Eröffnung, Hoch, Tief, Schluss. */
-type Candle = { day: string; open: number; high: number; low: number; close: number };
-
-/**
- * Fasst die einzelnen Anpassungsläufe zu Tageskerzen zusammen.
- *
- * Eröffnung ist der Preis des ersten Laufs des Tages, Schluss der des letzten;
- * Hoch und Tief die Spannweite dazwischen. Bei den üblichen zwei Läufen pro Tag
- * fallen Docht und Körper zusammen – ein Docht wird nur sichtbar, wenn an dem
- * Tag zusätzlich von Hand angepasst wurde.
- */
-export function toCandles(points: SparklinePoint[]): Candle[] {
-  const byDay = new Map<string, number[]>();
-  for (const p of points) {
-    const day = p.ts.slice(0, 10);
-    const list = byDay.get(day);
-    if (list) list.push(p.price);
-    else byDay.set(day, [p.price]);
-  }
-  const all = [...byDay.entries()].map(([day, prices]) => ({
-    day,
-    open: prices[0],
-    close: prices[prices.length - 1],
-    high: Math.max(...prices),
-    low: Math.min(...prices),
-  }));
-  // 14 Läufe verteilen sich über 8 Kalendertage, weil der älteste angebrochen
-  // ist. Der wird abgeschnitten – sonst stünden acht Kerzen unter „7 Tage".
-  return all.slice(-7);
-}
 
 /**
  * Kerzenchart der letzten 7 Tage – eine Kerze je Tag.
@@ -91,15 +61,12 @@ export default function PriceCandles({
           // gar nicht zu sehen und die Lücke sähe aus wie fehlende Daten.
           const height = moved ? Math.abs(yClose - yOpen) : 2;
 
-          // Docht nur zeichnen, wenn er über den Körper hinausragt – bei zwei
-          // Läufen am Tag ist das nie der Fall, bei Handanpassungen schon.
-          const hasWick =
-            c.high > Math.max(c.open, c.close) + 1e-9 ||
-            c.low < Math.min(c.open, c.close) - 1e-9;
+          // Docht nur zeichnen, wenn er über den Körper hinausragt.
+          const wick = hasWick(c);
 
           return (
             <g key={c.day}>
-              {hasWick && (
+              {(wick.top || wick.bottom) && (
                 <line
                   x1={cx}
                   x2={cx}
@@ -107,7 +74,8 @@ export default function PriceCandles({
                   y2={y(c.low)}
                   stroke={color}
                   strokeWidth="1"
-                  opacity={0.75}
+                  strokeLinecap="round"
+                  opacity={0.85}
                 />
               )}
               <rect
