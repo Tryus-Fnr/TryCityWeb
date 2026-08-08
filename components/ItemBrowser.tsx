@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCount, formatMaterialName, formatMoney, formatPct } from "@/lib/format";
 import { buildHaystack, matchesHaystack } from "@/lib/itemNames";
+import { Search, X } from "lucide-react";
 import ItemIcon from "@/components/ItemIcon";
 import PriceCandles from "@/components/PriceCandles";
 
@@ -118,32 +119,73 @@ export default function ItemBrowser() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Suche + Sortierung */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-          placeholder="Item suchen (deutsch oder englisch)…"
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm outline-none placeholder:text-neutral-600 focus:border-sky-400/50 sm:max-w-xs"
-        />
-        <div className="flex flex-wrap gap-2">
+      {/* Werkzeugleiste – Suche und Sortierung in einem eigenen Feld, damit sie
+          sich klar vom Kartenraster absetzen und beim Umbrechen nicht mit der
+          Anzahl in eine Zeile geraten. */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" />
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Item suchen – deutsch oder englisch"
+              aria-label="Item suchen"
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-9 text-sm outline-none placeholder:text-neutral-600 focus:border-sky-400/50"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setPage(0);
+                }}
+                aria-label="Suche zurücksetzen"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-500 transition-colors hover:bg-white/5 hover:text-neutral-200"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {items && (
+            <span className="whitespace-nowrap text-sm text-neutral-500 sm:ml-auto">
+              <span className="font-semibold text-neutral-300">
+                {formatCount(filtered.length)}
+              </span>{" "}
+              {filtered.length === 1 ? "Item" : "Items"}
+              {search && (
+                <span className="text-neutral-600"> von {formatCount(items.length)}</span>
+              )}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+            Sortieren
+          </span>
           {SORTS.map((s) => (
             <button
               key={s.key}
-              onClick={() => { setSort(s.key); setPage(0); }}
+              onClick={() => {
+                setSort(s.key);
+                setPage(0);
+              }}
+              aria-pressed={sort === s.key}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                 sort === s.key
-                  ? "bg-sky-500/15 text-sky-300"
-                  : "border border-white/10 text-neutral-400 hover:bg-white/5"
+                  ? "bg-sky-500/15 text-sky-300 ring-1 ring-sky-400/40"
+                  : "text-neutral-400 ring-1 ring-white/10 hover:bg-white/5 hover:text-neutral-200"
               }`}
             >
               {s.label}
             </button>
           ))}
         </div>
-        {items && (
-          <span className="text-sm text-neutral-500 sm:ml-auto">{filtered.length} Items</span>
-        )}
       </div>
 
       {/* Grid */}
@@ -156,7 +198,46 @@ export default function ItemBrowser() {
           Lade…
         </div>
       ) : (
+        filtered.length === 0 ? (
+          // Ohne eigenen Leerzustand blieb hier nur eine leere Fläche mit
+          // darüber hängender Legende stehen.
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
+            <p className="text-neutral-300">
+              Kein Item passt zu „<span className="font-medium">{search}</span>&ldquo;.
+            </p>
+            <p className="mt-1.5 text-sm text-neutral-500">
+              Es geht der deutsche wie der englische Name – auch nur ein Teil davon.
+            </p>
+            <button
+              onClick={() => {
+                setSearch("");
+                setPage(0);
+              }}
+              className="mt-5 rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 ring-1 ring-white/10 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              Suche zurücksetzen
+            </button>
+          </div>
+        ) : (
         <>
+          {/* Legende: erklärt die Kerzen einmal für das ganze Raster, statt auf
+              jeder Karte „7 Tage" zu wiederholen. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-neutral-600">
+            <span>Kerzen = Preis je Tag, letzte 7 Tage</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2 rounded-[1px] bg-emerald-400" />
+              gestiegen
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2 rounded-[1px] bg-red-400" />
+              gefallen
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-0.5 w-2 rounded-[1px] bg-neutral-500" />
+              unverändert
+            </span>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {paged.map((item) => {
               const change =
@@ -171,46 +252,67 @@ export default function ItemBrowser() {
                 <Link
                   key={item.material}
                   href={`/items/${item.material.toLowerCase()}`}
-                  className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-colors hover:border-sky-400/40 hover:bg-sky-400/5"
+                  className="group flex flex-col rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 transition-colors hover:border-sky-400/40 hover:bg-sky-400/[0.04]"
                 >
                   <div className="flex items-center gap-2.5">
                     <ItemIcon material={item.material} size={28} className="shrink-0" />
                     <div
-                      className="truncate text-sm font-semibold group-hover:text-sky-300"
+                      className="truncate text-sm font-semibold text-neutral-200 group-hover:text-sky-300"
                       title={formatMaterialName(item.material)}
                     >
                       {item.de || formatMaterialName(item.material)}
                     </div>
                   </div>
-                  {spark.length > 1 && <PriceCandles points={spark} className="mt-3" />}
-                  <div className="mt-2 text-lg font-bold text-emerald-400">
-                    ${formatMoney(item.price)}
-                  </div>
-                  <div className="mt-1 flex items-center justify-between text-xs">
+
+                  {spark.length > 1 && (
+                    <PriceCandles points={spark} className="mt-3" label="" />
+                  )}
+
+                  {/* Preis und Änderung auf einer Grundlinie: der Preis ist die
+                      Hauptzahl, die Änderung ihre Einordnung – untereinander
+                      lasen sie sich wie zwei gleichrangige Angaben. */}
+                  <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-lg font-bold text-emerald-400">
+                      ${formatMoney(item.price)}
+                    </span>
                     {change !== null && Math.abs(change) >= 0.05 ? (
-                      <span className={change > 0 ? "text-emerald-400" : "text-red-400"}>
+                      <span
+                        className={`text-xs font-medium ${
+                          change > 0 ? "text-emerald-400" : "text-red-400"
+                        }`}
+                      >
                         {formatPct(change)}
-                        {changeAbs !== null && (
-                          <span className="text-neutral-500">
+                        {/* Der Betrag nur, wenn er auf zwei Stellen überhaupt
+                            sichtbar ist – bei Erde oder Netherstein stand sonst
+                            überall ein nichtssagendes „(+$0,00)". */}
+                        {changeAbs !== null && Math.abs(changeAbs) >= 0.005 && (
+                          <span className="font-normal text-neutral-500">
                             {" "}
                             ({changeAbs > 0 ? "+" : "−"}${formatMoney(Math.abs(changeAbs))})
                           </span>
-                        )}{" "}
-                        <span className="text-neutral-600">12h</span>
+                        )}
                       </span>
                     ) : (
-                      <span className="text-neutral-600">± 0 % 12h</span>
+                      <span className="text-xs text-neutral-600">± 0 %</span>
                     )}
-                    {/* Bei "Meist verkauft" die Zahl zeigen, nach der sortiert wird –
-                        eine Rangliste ohne den Wert dahinter ist nicht nachvollziehbar. */}
-                    {sort === "sold48h" ? (
-                      <span className="text-sky-300">
-                        {formatCount(sold48h[item.material] ?? 0)}
-                        <span className="text-neutral-600"> verkauft</span>
-                      </span>
-                    ) : (
-                      <span className="text-neutral-600">Verlauf →</span>
-                    )}
+                    {/* Die Änderung vergleicht mit dem vorherigen Lauf – also
+                        12 h. Ohne den Zusatz wäre sie mit dem Verkaufsfenster
+                        in der Fusszeile zu verwechseln, das 48 h umfasst. */}
+                    <span className="text-[10px] text-neutral-600">12 h</span>
+                  </div>
+
+                  {/* Fusszeile: Umsatz im 48-Stunden-Fenster, so wie ihn auch
+                      die Sortierung „Meist verkauft 48h" benutzt. mt-auto hält
+                      sie bei unterschiedlich langen Namen auf gleicher Höhe. */}
+                  <div className="mt-auto flex items-center justify-between border-t border-white/[0.06] pt-2.5 text-[11px]">
+                    <span className="text-neutral-600">Verkauft 48 h</span>
+                    <span
+                      className={
+                        sort === "sold48h" ? "font-medium text-sky-300" : "text-neutral-500"
+                      }
+                    >
+                      {formatCount(sold48h[item.material] ?? 0)}
+                    </span>
                   </div>
                 </Link>
               );
@@ -222,6 +324,7 @@ export default function ItemBrowser() {
             <Pagination page={safePage} pageCount={pageCount} total={filtered.length} onPage={setPage} />
           )}
         </>
+        )
       )}
     </div>
   );

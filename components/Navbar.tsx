@@ -4,7 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper, Swords } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper, Swords, Home, ExternalLink } from "lucide-react";
+
+import type { LucideIcon } from "lucide-react";
 
 type Props = {
   session: { name: string; isAdmin: boolean; isMod: boolean } | null;
@@ -58,8 +60,24 @@ export default function Navbar({ session }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Close mobile menu on route change
-  useEffect(() => { setMenuOpen(false); }, [pathname]);
+  // Menü zu, sobald die Seite wechselt – das fängt vor allem den Zurück-Knopf
+  // ab, denn beim Klick auf einen Eintrag schließt es sich schon selbst.
+  // Beim Rendern abgeglichen statt in einem Effekt: so bleibt kein Bild
+  // stehen, in dem das Menü über der neuen Seite liegt.
+  const [menuPath, setMenuPath] = useState(pathname);
+  if (menuPath !== pathname) {
+    setMenuPath(pathname);
+    setMenuOpen(false);
+  }
+
+  // Solange das Menü offen ist, darf die Seite darunter nicht mitscrollen –
+  // sonst scrollt am Handy mal das Menü und mal der Inhalt dahinter.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const vorher = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = vorher; };
+  }, [menuOpen]);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -75,15 +93,26 @@ export default function Navbar({ session }: Props) {
   const isAdminActive = ADMIN_TABS.some((t) => isActive(t.href));
   const isModActive   = MOD_TABS.some((t) => isActive(t.href));
 
-  // Flat list for mobile
-  const mobileTabs = [
-    { href: "/", label: "Startseite" },
-    { href: "https://shop.trycity.net", label: "Shop", external: true },
-    ...MARKT_TABS.map((t) => ({ href: t.href, label: t.label })),
-    { href: "/news", label: "Blog" },
-    { href: "/regelwerk", label: "Regelwerk" },
-    ...(session?.isMod && !session?.isAdmin ? MOD_TABS.map((t) => ({ href: t.href, label: t.label })) : []),
-    ...(session?.isAdmin ? [...MOD_TABS.map((t) => ({ href: t.href, label: t.label })), ...ADMIN_TABS.map((t) => ({ href: t.href, label: t.label }))] : []),
+  // Am Handy dieselbe Gliederung wie am Desktop. Vorher war das eine einzige
+  // flache Liste – als Admin 17 optisch gleiche Zeilen, in der man nichts
+  // wiederfand. Überschriften und Symbole machen daraus vier kurze Blöcke.
+  const mobileSections: {
+    title: string | null;
+    items: { href: string; label: string; Icon: LucideIcon; external?: boolean }[];
+  }[] = [
+    {
+      title: null,
+      items: [
+        { href: "/", label: "Startseite", Icon: Home },
+        { href: "https://shop.trycity.net", label: "Shop", Icon: ShoppingCart, external: true },
+        { href: "/news", label: "Blog", Icon: Newspaper },
+        { href: "/regelwerk", label: "Regelwerk", Icon: FileText },
+      ],
+    },
+    { title: "Markt", items: MARKT_TABS },
+    // Admins sahen die Mod-Seiten schon vorher mit – das bleibt so.
+    ...(session?.isMod || session?.isAdmin ? [{ title: "Moderation", items: MOD_TABS }] : []),
+    ...(session?.isAdmin ? [{ title: "Verwaltung", items: ADMIN_TABS }] : []),
   ];
 
   const topLinkClass = (active: boolean) =>
@@ -313,40 +342,71 @@ export default function Navbar({ session }: Props) {
         </div>
       </nav>
 
-      {/* ── Mobile menu (flat list) ── */}
+      {/* ── Mobile menu (nach Bereichen gegliedert) ── */}
       {menuOpen && (
-        <div className="border-t border-white/10 px-4 py-3 md:hidden">
-          <div className="flex flex-col gap-0.5">
-            {mobileTabs.map((tab) => {
-              const cls = `rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                !("external" in tab) && isActive(tab.href)
-                  ? "bg-sky-500/15 text-sky-300"
-                  : "text-neutral-400 hover:bg-white/5 hover:text-neutral-100"
-              }`;
-              return "external" in tab ? (
-                <a
-                  key={tab.href}
-                  href={tab.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setMenuOpen(false)}
-                  className={cls}
-                >
-                  {tab.label}
-                </a>
-              ) : (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  onClick={() => setMenuOpen(false)}
-                  className={cls}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
+        <>
+          {/* Abdunkeln, damit klar ist, dass das Menü obenauf liegt – und ein
+              Tipp daneben es wieder schließt. */}
+          <button
+            className="fixed inset-0 top-14 z-40 bg-black/60 md:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Menü schließen"
+            tabIndex={-1}
+          />
+          {/* Eigene Scrollfläche: die Verwaltungsliste ist länger als der
+              Bildschirm, vorher schob sie den Seiteninhalt weg. */}
+          {/* Blickdicht, nicht durchscheinend: bei 95 % war der Seitentext
+              hinter den Einträgen noch lesbar und alles wirkte unruhig. */}
+          <div className="fixed inset-x-0 top-14 z-40 max-h-[calc(100dvh-3.5rem)] overflow-y-auto overscroll-contain border-t border-white/10 bg-neutral-950 px-4 pb-6 pt-2 md:hidden">
+            {mobileSections.map((section) => (
+              <div key={section.title ?? "start"} className="py-1.5">
+                {section.title && (
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-600">
+                    {section.title}
+                  </p>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  {section.items.map(({ href, label, Icon, external }) => {
+                    const active = !external && isActive(href);
+                    const cls = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-sky-500/15 text-sky-300"
+                        : "text-neutral-300 hover:bg-white/5 hover:text-neutral-100"
+                    }`;
+                    const inhalt = (
+                      <>
+                        <Icon
+                          className={`h-4 w-4 shrink-0 ${active ? "text-sky-400" : "text-neutral-500"}`}
+                          strokeWidth={1.5}
+                        />
+                        {label}
+                        {external && (
+                          <ExternalLink className="ml-auto h-3.5 w-3.5 text-neutral-600" />
+                        )}
+                      </>
+                    );
+                    return external ? (
+                      <a
+                        key={href}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setMenuOpen(false)}
+                        className={cls}
+                      >
+                        {inhalt}
+                      </a>
+                    ) : (
+                      <Link key={href} href={href} onClick={() => setMenuOpen(false)} className={cls}>
+                        {inhalt}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </>
       )}
     </header>
   );

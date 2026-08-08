@@ -90,9 +90,13 @@ export default function PriceCandles({
           );
         })}
       </svg>
-      <span className="pointer-events-none absolute right-0 top-0 text-[9px] leading-none text-neutral-600">
-        {label}
-      </span>
+      {/* Leeres Label heißt: der Zeitraum steht schon woanders. Auf der
+          Item-Übersicht sagt ihn die Legende einmal für alle Karten. */}
+      {label && (
+        <span className="pointer-events-none absolute right-0 top-0 text-[9px] leading-none text-neutral-600">
+          {label}
+        </span>
+      )}
     </div>
   );
 }
