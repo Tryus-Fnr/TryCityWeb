@@ -461,21 +461,34 @@ export async function loadServersNow(): Promise<ServerNow[]> {
 }
 
 /** Sparklines für alle Items: täglich aggregierter Preis der letzten 14 Tage. */
-export type SparklinePoint = { day: string; price: number };
+export type SparklinePoint = { ts: string; price: number };
+
+/** Wie viele Anpassungsläufe die Sparkline zeigt – 28 Läufe sind 14 Tage. */
+export const SPARKLINE_RUNS = 28;
+
+/**
+ * Preisverlauf je Item für die kleine Kurve in der Übersicht.
+ *
+ * Bewusst die Preise der einzelnen Läufe, KEIN Tagesdurchschnitt: gemittelt
+ * endete die Kurve nicht auf dem Preis, der groß daneben steht, und schon der
+ * letzte Punkt wich sichtbar ab. So ist der letzte Punkt exakt der aktuelle
+ * Preis und die Kurve passt zur Zahl.
+ */
 export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint[]>> {
-  const rows = await query<{ material: string; day: string; price: string }>(
-    `SELECT material,
-            DATE(ts) AS day,
-            ROUND(AVG(price), 2) AS price
-     FROM smpg_price_history
-     WHERE ts >= NOW() - INTERVAL 14 DAY
-     GROUP BY material, DATE(ts)
-     ORDER BY material ASC, day ASC`
+  const rows = await query<{ material: string; ts: string; price: string }>(
+    `SELECT material, ts, price FROM (
+       SELECT material, ts, price,
+              ROW_NUMBER() OVER (PARTITION BY material ORDER BY ts DESC, id DESC) AS rn
+       FROM smpg_price_history
+       WHERE ts >= NOW() - INTERVAL 14 DAY
+     ) t
+     WHERE rn <= ${SPARKLINE_RUNS}
+     ORDER BY material ASC, ts ASC`
   );
   const result: Record<string, SparklinePoint[]> = {};
   for (const r of rows) {
     if (!result[r.material]) result[r.material] = [];
-    result[r.material].push({ day: r.day, price: Number(r.price) });
+    result[r.material].push({ ts: r.ts, price: Number(r.price) });
   }
   return result;
 }

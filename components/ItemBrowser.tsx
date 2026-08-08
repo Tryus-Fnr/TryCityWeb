@@ -263,7 +263,22 @@ function Pagination({
   );
 }
 
-/** Winzige SVG-Sparkline für den Preisverlauf. */
+const SPARK_UP = "#34d399";
+const SPARK_DOWN = "#f87171";
+const SPARK_FLAT = "#6b7280";
+
+/**
+ * Kleine Kurve des Preisverlaufs über die letzten 14 Tage.
+ *
+ * Jeder Abschnitt trägt seine eigene Farbe: steigend grün, fallend rot,
+ * unverändert grau. Vorher war die ganze Kurve einfarbig nach dem Vergleich
+ * „erster gegen letzter Punkt" – daneben stand aber die Änderung der letzten
+ * 12 Stunden. Beides konnte auseinanderlaufen, und dann sah es aus wie ein
+ * Fehler: Netheritblock stand auf +0,8 %, die Kurve war durchgehend rot.
+ *
+ * Mit abschnittsweiser Färbung behauptet die Kurve nichts Einzelnes mehr, sie
+ * zeigt schlicht den Verlauf.
+ */
 function MiniSparkline({
   points,
   className = "",
@@ -281,32 +296,57 @@ function MiniSparkline({
   const xs = points.map((_, i) => (i / (points.length - 1)) * W);
   const ys = prices.map((p) => H - ((p - min) / range) * (H - 4) - 2);
 
-  const d =
+  // Aufeinanderfolgende Abschnitte gleicher Richtung zu je einem Pfad
+  // zusammenfassen – sonst entstehen bei 28 Punkten 27 einzelne Elemente.
+  const runs: { color: string; d: string }[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const diff = prices[i] - prices[i - 1];
+    const color = diff > 0 ? SPARK_UP : diff < 0 ? SPARK_DOWN : SPARK_FLAT;
+    const last = runs[runs.length - 1];
+    if (last && last.color === color) {
+      last.d += ` L${xs[i].toFixed(1)},${ys[i].toFixed(1)}`;
+    } else {
+      runs.push({
+        color,
+        d: `M${xs[i - 1].toFixed(1)},${ys[i - 1].toFixed(1)} L${xs[i].toFixed(1)},${ys[i].toFixed(1)}`,
+      });
+    }
+  }
+
+  // Fläche in neutralem Grau: eine eingefärbte Fläche würde wieder eine
+  // Gesamtaussage treffen, die der Kurve widerspricht.
+  const area =
     xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ") +
     ` L${W},${H} L0,${H} Z`;
 
-  const line = xs
-    .map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`)
-    .join(" ");
-
-  const isUp = prices[prices.length - 1] >= prices[0];
-  const color = isUp ? "#34d399" : "#f87171";
-
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className={`w-full ${className}`}
-      style={{ height: H }}
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id={`sg-${isUp}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <path d={d} fill={`url(#sg-${isUp})`} />
-      <path d={line} fill="none" stroke={color} strokeWidth="1.5" />
-    </svg>
+    <div className={`relative ${className}`}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ height: H }}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Preisverlauf der letzten 14 Tage"
+      >
+        <path d={area} fill="rgba(255,255,255,0.04)" />
+        {runs.map((r, i) => (
+          <path
+            key={i}
+            d={r.d}
+            fill="none"
+            stroke={r.color}
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </svg>
+      {/* Ohne Beschriftung war nicht erkennbar, welcher Zeitraum gemeint ist. */}
+      <span className="pointer-events-none absolute right-0 top-0 text-[9px] leading-none text-neutral-600">
+        14 Tage
+      </span>
+    </div>
   );
 }
