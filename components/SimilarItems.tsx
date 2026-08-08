@@ -1,8 +1,9 @@
 import Link from "next/link";
 import ItemIcon from "@/components/ItemIcon";
+import PriceCandles from "@/components/PriceCandles";
 import { formatCount, formatMoney, formatPct } from "@/lib/format";
 import { germanName } from "@/lib/itemNames.server";
-import type { SimilarItem } from "@/lib/queries";
+import type { SimilarItem, SparklinePoint } from "@/lib/queries";
 
 /** Kurze Begründung, warum das Item vorgeschlagen wird. */
 const REASON_LABEL: Record<SimilarItem["reason"], string> = {
@@ -19,7 +20,13 @@ const REASON_LABEL: Record<SimilarItem["reason"], string> = {
  * Serverseitig gerendert: die deutschen Namen kommen aus der Sprachdatei, die
  * bewusst nicht im Browser landet.
  */
-export default function SimilarItems({ items }: { items: SimilarItem[] }) {
+export default function SimilarItems({
+  items,
+  sparklines = {},
+}: {
+  items: SimilarItem[];
+  sparklines?: Record<string, SparklinePoint[]>;
+}) {
   if (items.length === 0) return null;
 
   return (
@@ -40,6 +47,10 @@ export default function SimilarItems({ items }: { items: SimilarItem[] }) {
                   {germanName(it.material)}
                 </div>
               </div>
+
+              {(sparklines[it.material]?.length ?? 0) > 1 && (
+                <PriceCandles points={sparklines[it.material]} className="mt-3" />
+              )}
 
               <div className="mt-3 text-lg font-bold text-emerald-400">
                 ${formatMoney(it.price)}

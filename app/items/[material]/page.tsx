@@ -1,7 +1,7 @@
 import ItemDetail from "@/components/ItemDetail";
 import { getAdminStatus } from "@/lib/auth";
 import { germanName } from "@/lib/itemNames.server";
-import { loadSimilarItems } from "@/lib/queries";
+import { loadSimilarItems, loadSparklinesFor } from "@/lib/queries";
 import SimilarItems from "@/components/SimilarItems";
 import { SetBreadcrumb } from "@/components/Breadcrumbs";
 
@@ -28,12 +28,13 @@ export default async function ItemDetailPage({
   // Serverseitig geladen, damit die Vorschläge direkt mit der Seite da sind
   // und keine zusätzliche Anfrage aus dem Browser brauchen.
   const similar = await loadSimilarItems(mat, 3).catch(() => []);
+  const similarSparks = await loadSparklinesFor(similar.map((s) => s.material)).catch(() => ({}));
 
   return (
     <>
       <SetBreadcrumb label={name} />
       <ItemDetail material={mat} name={name} isAdmin={isAdmin} />
-      <SimilarItems items={similar} />
+      <SimilarItems items={similar} sparklines={similarSparks} />
     </>
   );
 }

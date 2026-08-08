@@ -580,6 +580,35 @@ export async function loadSimilarItems(material: string, limit = 3): Promise<Sim
   }));
 }
 
+/**
+ * Preisverlauf für einzelne Materialien – für die Vorschau unter
+ * „Ähnliche Items". Bewusst gezielt statt {@link loadSparklinesAll}: für drei
+ * Karten die Historie aller 1229 Items zu holen wäre Verschwendung.
+ */
+export async function loadSparklinesFor(
+  materials: string[]
+): Promise<Record<string, SparklinePoint[]>> {
+  if (materials.length === 0) return {};
+  const marks = materials.map(() => "?").join(",");
+  const rows = await query<{ material: string; ts: string; price: string }>(
+    `SELECT material, ts, price FROM (
+       SELECT material, ts, price,
+              ROW_NUMBER() OVER (PARTITION BY material ORDER BY ts DESC, id DESC) AS rn
+       FROM smpg_price_history
+       WHERE material IN (${marks}) AND ts >= NOW() - INTERVAL 7 DAY
+     ) t
+     WHERE rn <= ${SPARKLINE_RUNS}
+     ORDER BY material ASC, ts ASC`,
+    materials.map((m) => m.toUpperCase())
+  );
+  const result: Record<string, SparklinePoint[]> = {};
+  for (const r of rows) {
+    if (!result[r.material]) result[r.material] = [];
+    result[r.material].push({ ts: r.ts, price: Number(r.price) });
+  }
+  return result;
+}
+
 /** Verkaufsvolumen je Material der letzten 48 Stunden (für Sort "Meist verkauft"). */
 export async function loadSold48h(): Promise<Record<string, number>> {
   const rows = await query<{ material: string; sold48h: string }>(
