@@ -1,6 +1,8 @@
 import ItemDetail from "@/components/ItemDetail";
 import { getAdminStatus } from "@/lib/auth";
 import { germanName } from "@/lib/itemNames.server";
+import { loadSimilarItems } from "@/lib/queries";
+import SimilarItems from "@/components/SimilarItems";
 import { SetBreadcrumb } from "@/components/Breadcrumbs";
 
 export async function generateMetadata({
@@ -23,10 +25,15 @@ export default async function ItemDetailPage({
   const name = germanName(mat);
   // Der deutsche Name kommt vom Server mit: so steht die Überschrift schon beim
   // ersten Anzeigen richtig da und springt nicht nachträglich um.
+  // Serverseitig geladen, damit die Vorschläge direkt mit der Seite da sind
+  // und keine zusätzliche Anfrage aus dem Browser brauchen.
+  const similar = await loadSimilarItems(mat, 3).catch(() => []);
+
   return (
     <>
       <SetBreadcrumb label={name} />
       <ItemDetail material={mat} name={name} isAdmin={isAdmin} />
+      <SimilarItems items={similar} />
     </>
   );
 }

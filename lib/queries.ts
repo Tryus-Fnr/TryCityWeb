@@ -463,16 +463,16 @@ export async function loadServersNow(): Promise<ServerNow[]> {
 /** Sparklines für alle Items: täglich aggregierter Preis der letzten 14 Tage. */
 export type SparklinePoint = { ts: string; price: number };
 
-/** Wie viele Anpassungsläufe die Sparkline zeigt – 28 Läufe sind 14 Tage. */
-export const SPARKLINE_RUNS = 28;
+/** Wie viele Anpassungsläufe die Vorschau zeigt – 14 Läufe sind 7 Tage. */
+export const SPARKLINE_RUNS = 14;
 
 /**
- * Preisverlauf je Item für die kleine Kurve in der Übersicht.
+ * Preisverlauf je Item für die Vorschau in der Übersicht.
  *
- * Bewusst die Preise der einzelnen Läufe, KEIN Tagesdurchschnitt: gemittelt
- * endete die Kurve nicht auf dem Preis, der groß daneben steht, und schon der
- * letzte Punkt wich sichtbar ab. So ist der letzte Punkt exakt der aktuelle
- * Preis und die Kurve passt zur Zahl.
+ * Bewusst die Preise der einzelnen Läufe, KEIN Tagesdurchschnitt: daraus baut
+ * die Anzeige die Tageskerzen (Eröffnung, Hoch, Tief, Schluss). Gemittelt wäre
+ * das nicht möglich, und der letzte Punkt wich zudem von dem Preis ab, der groß
+ * daneben steht.
  */
 export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint[]>> {
   const rows = await query<{ material: string; ts: string; price: string }>(
@@ -480,7 +480,7 @@ export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint
        SELECT material, ts, price,
               ROW_NUMBER() OVER (PARTITION BY material ORDER BY ts DESC, id DESC) AS rn
        FROM smpg_price_history
-       WHERE ts >= NOW() - INTERVAL 14 DAY
+       WHERE ts >= NOW() - INTERVAL 7 DAY
      ) t
      WHERE rn <= ${SPARKLINE_RUNS}
      ORDER BY material ASC, ts ASC`
@@ -491,6 +491,93 @@ export async function loadSparklinesAll(): Promise<Record<string, SparklinePoint
     result[r.material].push({ ts: r.ts, price: Number(r.price) });
   }
   return result;
+}
+
+/** Ein Vorschlag für „Ähnliche Items" samt Begründung. */
+export type SimilarItem = {
+  material: string;
+  price: number;
+  changePercent: number | null;
+  changeAbsolute: number | null;
+  sold48h: number;
+  /** Worin sich die beiden am meisten ähneln – für das Etikett auf der Karte. */
+  reason: "family" | "price" | "sold" | "change";
+};
+
+/**
+ * Bestandteile eines Materialnamens, die für Verwandtschaft taugen.
+ * Sehr häufige Wörter fliegen raus – sonst gilt jedes Item mit „BLOCK" im
+ * Namen als verwandt mit jedem anderen.
+ */
+const COMMON_TOKENS = new Set(["BLOCK", "ITEM", "MINECRAFT"]);
+function nameTokens(material: string): string[] {
+  return material.split("_").filter((t) => t.length >= 3 && !COMMON_TOKENS.has(t));
+}
+
+/**
+ * Findet Items, die dem gegebenen ähneln.
+ *
+ * Verglichen wird in mehreren Dimensionen, jede auf „0 = gleich" normiert.
+ * Preis und Verkaufsmenge gehen logarithmisch ein, weil sie über
+ * Größenordnungen streuen – ohne das lägen sonst immer die teuersten Items
+ * vorn, egal wie weit sie entfernt sind.
+ *
+ * Der Verwandtschafts-Bonus greift, wenn beide Materialnamen einen
+ * aussagekräftigen Bestandteil teilen (IRON_INGOT ↔ IRON_BLOCK). Das ist die
+ * Ähnlichkeit, die man zuerst erwartet.
+ */
+export async function loadSimilarItems(material: string, limit = 3): Promise<SimilarItem[]> {
+  const mat = material.toUpperCase();
+  const [items, sold] = await Promise.all([loadItems(), loadSold48h()]);
+
+  const self = items.find((i) => i.material === mat);
+  if (!self || self.price <= 0) return [];
+
+  const changeOf = (i: ItemRow) =>
+    i.previous && i.previous > 0 ? ((i.price - i.previous) / i.previous) * 100 : null;
+
+  const selfChange = changeOf(self) ?? 0;
+  const selfSold = sold[mat] ?? 0;
+  const selfTokens = nameTokens(mat);
+
+  const scored = items
+    .filter((i) => i.material !== mat && i.price > 0)
+    .map((i) => {
+      const shared = nameTokens(i.material).filter((t) => selfTokens.includes(t)).length;
+      const change = changeOf(i) ?? 0;
+      // Bewegen sich beide gar nicht, ist „gleiche Änderung" keine Aussage –
+      // sonst gilt jedes ruhige Item als ähnlich zu jedem anderen ruhigen.
+      const bothMoved = Math.abs(change) >= 0.05 && Math.abs(selfChange) >= 0.05;
+
+      // Abstände je Dimension – klein bedeutet ähnlich.
+      const dPrice = Math.abs(Math.log(i.price / self.price));
+      const dSold = Math.abs(Math.log((sold[i.material] ?? 0) + 1) - Math.log(selfSold + 1));
+      const dChange = bothMoved ? Math.abs(change - selfChange) / 5 : 0;
+      const family = shared > 0 ? 1.2 : 0;
+
+      // Der Preis wiegt am schwersten: ein Vorschlag, der zehnmal so teuer ist,
+      // hilft niemandem, auch wenn Menge und Bewegung zufällig passen.
+      const score = dPrice * 1.4 + dSold * 0.8 + dChange * 0.6 - family;
+
+      // Fürs Etikett: die Dimension mit dem kleinsten Abstand gewinnt.
+      let reason: SimilarItem["reason"] = "price";
+      if (shared > 0) reason = "family";
+      else if (bothMoved && dChange < dPrice && dChange < dSold) reason = "change";
+      else if (dSold < dPrice) reason = "sold";
+
+      return { item: i, score, reason };
+    })
+    .sort((a, b) => a.score - b.score)
+    .slice(0, Math.max(1, limit));
+
+  return scored.map(({ item, reason }) => ({
+    material: item.material,
+    price: item.price,
+    changePercent: changeOf(item),
+    changeAbsolute: item.previous && item.previous > 0 ? item.price - item.previous : null,
+    sold48h: sold[item.material] ?? 0,
+    reason,
+  }));
 }
 
 /** Verkaufsvolumen je Material der letzten 48 Stunden (für Sort "Meist verkauft"). */

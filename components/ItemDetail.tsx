@@ -16,6 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { formatCount, formatMaterialName, formatMoney, formatTs } from "@/lib/format";
 import { volumeAverages } from "@/lib/volumeAverages";
 
@@ -121,6 +122,8 @@ export default function ItemDetail({
   // einem Auktionsschnitt von $500 auf einer gemeinsamen Achse eine flache Linie wäre.
   const [splitScales, setSplitScales] = useState(true);
   const [showTurns, setShowTurns] = useState(true);
+  /** Admin-Bedienfelder sind eingeklappt, bis man sie braucht. */
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const load = useCallback(
     async (r: string) => {
@@ -295,21 +298,40 @@ export default function ItemDetail({
         </div>
       )}
 
-      {/* Admin-Bedienfelder */}
+      {/* Admin-Bedienfelder – eingeklappt hinter einem Knopf. Sie richten sich
+          an genau eine Person, während die Seite für alle da ist; dauerhaft
+          aufgeklappt haben sie den halben Platz über dem Graphen belegt. */}
       {isAdmin && (
         <div className="flex flex-col gap-4">
-          <SettingsEditor
-            material={material}
-            settings={data?.settings ?? null}
-            currentPrice={data?.currentPrice ?? null}
-            onChanged={() => load(range)}
-          />
-          <MetaEditor
-            material={material}
-            meta={data?.meta ?? null}
-            currentPrice={data?.currentPrice ?? null}
-            onChanged={() => load(range)}
-          />
+          <button
+            type="button"
+            onClick={() => setAdminOpen((v) => !v)}
+            aria-expanded={adminOpen}
+            className="inline-flex w-fit items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-white/5 hover:text-neutral-200"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Preis verwalten
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${adminOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {adminOpen && (
+            <>
+              <SettingsEditor
+                material={material}
+                settings={data?.settings ?? null}
+                currentPrice={data?.currentPrice ?? null}
+                onChanged={() => load(range)}
+              />
+              <MetaEditor
+                material={material}
+                meta={data?.meta ?? null}
+                currentPrice={data?.currentPrice ?? null}
+                onChanged={() => load(range)}
+              />
+            </>
+          )}
         </div>
       )}
 

@@ -18,7 +18,8 @@ type Item = {
   de?: string | null;
 };
 
-type SparklinePoint = { day: string; price: number };
+/** Ein Anpassungslauf: Zeitpunkt und Preis. Spiegelt lib/queries.ts. */
+type SparklinePoint = { ts: string; price: number };
 
 const SORTS = [
   { key: "price-desc", label: "Höchster Preis" },
@@ -265,19 +266,45 @@ function Pagination({
 
 const SPARK_UP = "#34d399";
 const SPARK_DOWN = "#f87171";
-const SPARK_FLAT = "#6b7280";
+
+/** Eine Tageskerze: Eröffnung, Hoch, Tief, Schluss. */
+type Candle = { day: string; open: number; high: number; low: number; close: number };
 
 /**
- * Kleine Kurve des Preisverlaufs über die letzten 14 Tage.
+ * Fasst die einzelnen Anpassungsläufe zu Tageskerzen zusammen.
  *
- * Jeder Abschnitt trägt seine eigene Farbe: steigend grün, fallend rot,
- * unverändert grau. Vorher war die ganze Kurve einfarbig nach dem Vergleich
- * „erster gegen letzter Punkt" – daneben stand aber die Änderung der letzten
- * 12 Stunden. Beides konnte auseinanderlaufen, und dann sah es aus wie ein
- * Fehler: Netheritblock stand auf +0,8 %, die Kurve war durchgehend rot.
+ * Eröffnung ist der Preis des ersten Laufs des Tages, Schluss der des letzten;
+ * Hoch und Tief die Spannweite dazwischen. Bei den üblichen zwei Läufen pro Tag
+ * fallen Docht und Körper zusammen – wurde an einem Tag zusätzlich von Hand
+ * angepasst, entstehen sichtbare Dochte.
+ */
+function toCandles(points: SparklinePoint[]): Candle[] {
+  const byDay = new Map<string, number[]>();
+  for (const p of points) {
+    const day = p.ts.slice(0, 10);
+    const list = byDay.get(day);
+    if (list) list.push(p.price);
+    else byDay.set(day, [p.price]);
+  }
+  const all = [...byDay.entries()].map(([day, prices]) => ({
+    day,
+    open: prices[0],
+    close: prices[prices.length - 1],
+    high: Math.max(...prices),
+    low: Math.min(...prices),
+  }));
+  // 14 Läufe verteilen sich über 8 Kalendertage, weil der älteste angebrochen
+  // ist. Der wird abgeschnitten – sonst stünden acht Kerzen unter „7 Tage".
+  return all.slice(-7);
+}
+
+/**
+ * Kerzenchart des Preisverlaufs der letzten 7 Tage.
  *
- * Mit abschnittsweiser Färbung behauptet die Kurve nichts Einzelnes mehr, sie
- * zeigt schlicht den Verlauf.
+ * Grün, wenn der Tag höher geschlossen hat als er eröffnet wurde, sonst rot.
+ * Die frühere Linie war durchgehend einfarbig nach „erster gegen letzter Punkt"
+ * über 14 Tage – daneben stand aber die Änderung der letzten 12 Stunden, und
+ * beides konnte einander widersprechen. Kerzen zeigen jeden Tag für sich.
  */
 function MiniSparkline({
   points,
@@ -286,38 +313,22 @@ function MiniSparkline({
   points: SparklinePoint[];
   className?: string;
 }) {
+  const candles = toCandles(points);
+  if (candles.length === 0) return null;
+
   const W = 160;
   const H = 36;
-  const prices = points.map((p) => p.price);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
+  const PAD = 2;
+
+  const min = Math.min(...candles.map((c) => c.low));
+  const max = Math.max(...candles.map((c) => c.high));
   const range = max - min || 1;
+  const y = (v: number) => H - PAD - ((v - min) / range) * (H - 2 * PAD);
 
-  const xs = points.map((_, i) => (i / (points.length - 1)) * W);
-  const ys = prices.map((p) => H - ((p - min) / range) * (H - 4) - 2);
-
-  // Aufeinanderfolgende Abschnitte gleicher Richtung zu je einem Pfad
-  // zusammenfassen – sonst entstehen bei 28 Punkten 27 einzelne Elemente.
-  const runs: { color: string; d: string }[] = [];
-  for (let i = 1; i < points.length; i++) {
-    const diff = prices[i] - prices[i - 1];
-    const color = diff > 0 ? SPARK_UP : diff < 0 ? SPARK_DOWN : SPARK_FLAT;
-    const last = runs[runs.length - 1];
-    if (last && last.color === color) {
-      last.d += ` L${xs[i].toFixed(1)},${ys[i].toFixed(1)}`;
-    } else {
-      runs.push({
-        color,
-        d: `M${xs[i - 1].toFixed(1)},${ys[i - 1].toFixed(1)} L${xs[i].toFixed(1)},${ys[i].toFixed(1)}`,
-      });
-    }
-  }
-
-  // Fläche in neutralem Grau: eine eingefärbte Fläche würde wieder eine
-  // Gesamtaussage treffen, die der Kurve widerspricht.
-  const area =
-    xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ") +
-    ` L${W},${H} L0,${H} Z`;
+  // Feste Breite je Tag, damit die Kerzen bei wenigen Tagen nicht auseinander-
+  // gezogen werden – ein Tag mit Lücke soll auch als Lücke sichtbar bleiben.
+  const slot = W / Math.max(candles.length, 7);
+  const bodyW = Math.max(3, slot * 0.6);
 
   return (
     <div className={`relative ${className}`}>
@@ -325,27 +336,44 @@ function MiniSparkline({
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         style={{ height: H }}
-        preserveAspectRatio="none"
         role="img"
-        aria-label="Preisverlauf der letzten 14 Tage"
+        aria-label="Preisverlauf der letzten 7 Tage als Tageskerzen"
       >
-        <path d={area} fill="rgba(255,255,255,0.04)" />
-        {runs.map((r, i) => (
-          <path
-            key={i}
-            d={r.d}
-            fill="none"
-            stroke={r.color}
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {candles.map((c, i) => {
+          const cx = i * slot + slot / 2;
+          const up = c.close >= c.open;
+          const color = up ? SPARK_UP : SPARK_DOWN;
+          const yOpen = y(c.open);
+          const yClose = y(c.close);
+          const top = Math.min(yOpen, yClose);
+          // Mindesthöhe, damit ein unveränderter Tag nicht unsichtbar wird.
+          const height = Math.max(1, Math.abs(yClose - yOpen));
+          return (
+            <g key={c.day}>
+              <line
+                x1={cx}
+                x2={cx}
+                y1={y(c.high)}
+                y2={y(c.low)}
+                stroke={color}
+                strokeWidth="1"
+                opacity={0.8}
+              />
+              <rect
+                x={cx - bodyW / 2}
+                y={top}
+                width={bodyW}
+                height={height}
+                fill={color}
+                rx={0.5}
+              />
+            </g>
+          );
+        })}
       </svg>
       {/* Ohne Beschriftung war nicht erkennbar, welcher Zeitraum gemeint ist. */}
       <span className="pointer-events-none absolute right-0 top-0 text-[9px] leading-none text-neutral-600">
-        14 Tage
+        7 Tage
       </span>
     </div>
   );
