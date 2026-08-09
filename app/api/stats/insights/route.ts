@@ -1,18 +1,11 @@
 import { NextResponse } from "next/server";
-import {
-  loadAllTimeRecord,
-  loadGroupLoad,
-  loadHourlyPlayers,
-  loadPlayerHistogram,
-  loadStatsCoverage,
-} from "@/lib/queries";
+import { loadAllTimeRecord, loadHourlyPlayers, loadStatsCoverage } from "@/lib/queries";
 import { buildPatterns, type PlayerInsights } from "@/lib/playerInsights";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Auswertungen über die Spielerzahlen: Rekord, Tages- und Wochenmuster,
- * Verteilung, Last je Servergruppe.
+ * Auswertungen über die Spielerzahlen: Rekord sowie Tages- und Wochenmuster.
  *
  * Bewusst getrennt von /api/stats/players – das liefert den Verlauf für den
  * gewählten Zeitraum und wird beim Umschalten jedes Mal neu geholt. Die Muster
@@ -36,12 +29,10 @@ export async function GET(req: Request) {
   const since = days === 0 ? 0 : Date.now() - days * 24 * 3600_000;
 
   try {
-    const [record, coverage, buckets, histogram, groups] = await Promise.all([
+    const [record, coverage, buckets] = await Promise.all([
       loadAllTimeRecord(),
       loadStatsCoverage(),
       loadHourlyPlayers(since),
-      loadPlayerHistogram(since),
-      loadGroupLoad(since),
     ]);
 
     const body: PlayerInsights = {
@@ -50,8 +41,6 @@ export async function GET(req: Request) {
       since: days === 0 ? coverage.firstAt : since,
       record,
       coverage,
-      histogram,
-      groups,
       ...buildPatterns(buckets),
     };
     return NextResponse.json(body);

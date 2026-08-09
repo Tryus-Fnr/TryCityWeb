@@ -19,12 +19,6 @@ export type PlayerRecord = { players: number; at: number };
 /** Datenbasis der Auswertung. */
 export type StatsCoverage = { firstAt: number | null; snapshots: number };
 
-/** Ø und Höchststand je Servergruppe. */
-export type GroupLoad = { group: string; avg: number; max: number };
-
-/** Wie oft welche Gesamt-Spielerzahl gemessen wurde. */
-export type HistogramRow = { players: number; samples: number };
-
 export type HourStat = { hour: number; avg: number; max: number; samples: number };
 export type WeekdayStat = { day: number; avg: number; max: number; samples: number };
 export type DayStat = { day: string; avg: number; max: number };
@@ -36,7 +30,7 @@ export type PlayerPatterns = {
   byWeekday: WeekdayStat[];
   /** [Wochentag][Stunde] – null, wo nie gemessen wurde. */
   heatmap: (number | null)[][];
-  /** Ein Eintrag je Kalendertag, aufsteigend. */
+  /** Ein Eintrag je Kalendertag, aufsteigend – Grundlage des Wochentrends. */
   daily: DayStat[];
   /** Ø über den ganzen Zeitraum. */
   avgOverall: number;
@@ -52,8 +46,6 @@ export type PlayerInsights = PlayerPatterns & {
   /** Immer über die gesamte Aufzeichnung, nie nur über das Fenster. */
   record: PlayerRecord | null;
   coverage: StatsCoverage;
-  histogram: HistogramRow[];
-  groups: GroupLoad[];
   error?: string;
 };
 
@@ -230,32 +222,3 @@ export function weekTrend(avgByDay: number[]): string | null {
   return `${pct > 0 ? "+" : ""}${pct.toLocaleString("de-DE", { maximumFractionDigits: 1 })} %`;
 }
 
-/** Eine Klasse der Verteilung: „5–9 Spieler an 12,3 % der Messungen“. */
-export type DistributionBin = { label: string; share: number };
-
-/**
- * Bündelt die Verteilung auf höchstens zwölf gleich breite Klassen.
- *
- * Jede einzelne Spielerzahl wäre bei einem gut besuchten Server nicht mehr
- * lesbar; gleich breite Klassen, damit die Balken vergleichbar bleiben.
- */
-export function bundleHistogram(histogram: HistogramRow[]): DistributionBin[] {
-  const total = histogram.reduce((sum, r) => sum + r.samples, 0);
-  if (total === 0) return [];
-
-  const highest = histogram[histogram.length - 1].players;
-  const size = Math.max(1, Math.ceil((highest + 1) / 12));
-
-  const bins = new Map<number, number>();
-  for (const row of histogram) {
-    const bin = Math.floor(row.players / size);
-    bins.set(bin, (bins.get(bin) ?? 0) + row.samples);
-  }
-
-  return [...bins.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([bin, samples]) => ({
-      label: size === 1 ? String(bin) : `${bin * size}–${bin * size + size - 1}`,
-      share: Math.round((samples / total) * 1000) / 10,
-    }));
-}

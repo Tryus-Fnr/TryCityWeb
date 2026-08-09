@@ -1,11 +1,5 @@
 import { exec, query } from "./db";
-import type {
-  GroupLoad,
-  HistogramRow,
-  HourBucket,
-  PlayerRecord,
-  StatsCoverage,
-} from "./playerInsights";
+import type { HourBucket, PlayerRecord, StatsCoverage } from "./playerInsights";
 
 /**
  * Alle Lese-Queries der Website an die Spiel-Datenbank.
@@ -1906,57 +1900,6 @@ export async function loadHourlyPlayers(sinceMs: number): Promise<HourBucket[]> 
     avg: Number(r.avg_total),
     max: Number(r.max_total),
     samples: Number(r.n),
-  }));
-}
-
-/**
- * Wie oft welche Gesamt-Spielerzahl gemessen wurde.
- *
- * Daraus wird die Verteilung: „an wie viel Prozent der Zeit waren wie viele
- * Spieler online“. Bewusst über die einzelnen Messungen und nicht über
- * Stundenmittel – gemittelt wären die Ausschläge nach oben und unten weg.
- */
-export async function loadPlayerHistogram(sinceMs: number): Promise<HistogramRow[]> {
-  const rows = await query<{ total: string; n: string }>(
-    `SELECT total, COUNT(*) AS n FROM (
-       SELECT timestamp, SUM(online_players) AS total
-       FROM server_statistics
-       WHERE timestamp >= ?
-       GROUP BY timestamp
-     ) x
-     GROUP BY total ORDER BY total ASC`,
-    [sinceMs]
-  );
-  return rows.map((r) => ({ players: Number(r.total), samples: Number(r.n) }));
-}
-
-/**
- * Ø und Höchststand je Servergruppe.
- *
- * Gruppiert wird über den Namen vor dem ersten Bindestrich, also „Lobby-1“ und
- * „Lobby-2“ zusammen als „Lobby“. Einzelne Dienste kommen und gehen, ihre Namen
- * wären als Zeitreihe wertlos.
- *
- * Läuft eine Gruppe zeitweise gar nicht, fehlen ihre Zeilen ganz und zählen
- * nicht als null Spieler – ihr Ø beschreibt also die Zeit, in der sie lief.
- */
-export async function loadGroupLoad(sinceMs: number): Promise<GroupLoad[]> {
-  const rows = await query<{ grp: string; avg_total: string; max_total: string }>(
-    `SELECT grp, AVG(total) AS avg_total, MAX(total) AS max_total FROM (
-       SELECT timestamp,
-              SUBSTRING_INDEX(server_name, '-', 1) AS grp,
-              SUM(online_players) AS total
-       FROM server_statistics
-       WHERE timestamp >= ?
-       GROUP BY timestamp, grp
-     ) x
-     GROUP BY grp ORDER BY avg_total DESC`,
-    [sinceMs]
-  );
-  return rows.map((r) => ({
-    group: r.grp,
-    avg: Math.round(Number(r.avg_total) * 10) / 10,
-    max: Number(r.max_total),
   }));
 }
 

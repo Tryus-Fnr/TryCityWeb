@@ -2,8 +2,6 @@
 
 import { useMemo } from "react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -18,7 +16,6 @@ import {
   PRIME_THRESHOLD,
   WEEKDAYS,
   WEEKDAYS_LONG,
-  bundleHistogram,
   primeTime,
   weekTrend,
   type PlayerInsights,
@@ -29,18 +26,16 @@ import {
   GRID,
   HIGHLIGHT,
   SERIES,
-  SERIES_MAX,
   TOOLTIP_STYLE,
   avgLabel,
   germanDateTime,
   hourLabel,
-  shortDay,
 } from "./chartTheme";
 import PlayerHeatmap from "./PlayerHeatmap";
 
 /**
- * Alles, was sich aus den Spielerzahlen ablesen lässt: Tages- und Wochenmuster,
- * Tagesverlauf, Verteilung und die Last je Servergruppe.
+ * Muster in den Spielerzahlen: zu welcher Uhrzeit und an welchem Wochentag im
+ * Schnitt am meisten los ist.
  *
  * Der Zeitraum steht als eine Auswahl über dem ganzen Abschnitt – alle
  * Diagramme darunter zeigen denselben Ausschnitt, sonst vergleicht man
@@ -227,133 +222,6 @@ export default function PlayerPatterns({ data, loading, period, onPeriodChange }
             <PlayerHeatmap cells={data?.heatmap ?? []} />
           </Panel>
 
-          {/* ── Tagesverlauf ── */}
-          <Panel
-            title="Tagesrekorde und Tagesschnitt"
-            subtitle="Je Kalendertag der Höchststand und der Durchschnitt."
-          >
-            <ChartLegend
-              items={[
-                { color: SERIES, label: "Ø Spieler" },
-                { color: "#34d399", label: "Höchststand am Tag" },
-              ]}
-            />
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart
-                data={data?.daily ?? []}
-                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-              >
-                <defs>
-                  <linearGradient id="dailyAvg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={SERIES} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={SERIES} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={GRID} vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  stroke={AXIS_LINE}
-                  tick={AXIS_TICK}
-                  tickFormatter={shortDay}
-                  minTickGap={40}
-                />
-                <YAxis allowDecimals={false} stroke={AXIS_LINE} tick={AXIS_TICK} />
-                <Tooltip
-                  contentStyle={TOOLTIP_STYLE}
-                  labelFormatter={(d) => shortDay(String(d))}
-                  formatter={(v, name) => [
-                    `${avgLabel(Number(v))} Spieler`,
-                    name === "avg" ? "Ø" : "Höchststand",
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="max"
-                  stroke={SERIES_MAX}
-                  strokeWidth={1.5}
-                  fill="none"
-                  isAnimationActive={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="avg"
-                  stroke={SERIES}
-                  strokeWidth={2}
-                  fill="url(#dailyAvg)"
-                  isAnimationActive={false}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          {/* ── Verteilung ── */}
-          <Panel
-            title="Verteilung der Spielerzahl"
-            subtitle="An wie viel Prozent der Messungen waren wie viele Spieler gleichzeitig online."
-          >
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={derived?.distribution ?? []}
-                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-              >
-                <CartesianGrid stroke={GRID} vertical={false} />
-                <XAxis dataKey="label" stroke={AXIS_LINE} tick={AXIS_TICK} />
-                <YAxis
-                  stroke={AXIS_LINE}
-                  tick={AXIS_TICK}
-                  tickFormatter={(v) => `${Math.round(Number(v))} %`}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(255,255,255,0.04)" }}
-                  contentStyle={TOOLTIP_STYLE}
-                  labelFormatter={(l) => `${l} Spieler online`}
-                  formatter={(v) => [`${avgLabel(Number(v))} % der Zeit`, "Anteil"]}
-                />
-                <Bar
-                  dataKey="share"
-                  fill={SERIES}
-                  maxBarSize={40}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={false}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          {/* ── Last je Servergruppe ── */}
-          {data?.ok && data.groups.length > 0 && (
-            <Panel
-              title="Ø Spieler je Servergruppe"
-              subtitle="Zusammengefasst über den Namen vor dem Bindestrich, also alle Lobbys gemeinsam."
-            >
-              <div className="flex flex-col gap-3">
-                {data.groups.map((g) => {
-                  const top = data.groups[0].avg || 1;
-                  return (
-                    <div key={g.group} className="flex items-center gap-3 text-sm">
-                      <div className="w-28 shrink-0 truncate font-medium text-neutral-200">
-                        {g.group}
-                      </div>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, (g.avg / top) * 100)}%`,
-                            backgroundColor: SERIES,
-                          }}
-                        />
-                      </div>
-                      <div className="w-32 shrink-0 text-right tabular-nums text-neutral-400">
-                        Ø {avgLabel(g.avg)}
-                        <span className="text-neutral-600"> · max {g.max}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Panel>
-          )}
-
           {/* ── Datenbasis ── */}
           {data?.ok && (
             <p className="text-xs text-neutral-600">
@@ -379,7 +247,6 @@ function derive(data: PlayerInsights) {
     bestWeekday: data.byWeekday.reduce((a, b) => (b.avg > a.avg ? b : a), data.byWeekday[0]),
     prime: primeTime(data.byHour.map((h) => h.avg)),
     trend: weekTrend(data.daily.map((d) => d.avg)),
-    distribution: bundleHistogram(data.histogram),
   };
 }
 
@@ -413,20 +280,6 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
       <div className="text-xs font-medium uppercase tracking-wider text-neutral-500">{label}</div>
       <div className="mt-1.5 text-2xl font-bold text-neutral-100">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-neutral-500">{hint}</div>}
-    </div>
-  );
-}
-
-/** Legende für Diagramme mit zwei Reihen – Farbe allein soll nie tragen. */
-function ChartLegend({ items }: { items: { color: string; label: string }[] }) {
-  return (
-    <div className="mb-3 flex flex-wrap gap-4 text-xs text-neutral-400">
-      {items.map((i) => (
-        <span key={i.label} className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: i.color }} />
-          {i.label}
-        </span>
-      ))}
     </div>
   );
 }

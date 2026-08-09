@@ -46,12 +46,6 @@ export function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, "0")} Uhr`;
 }
 
-/** "2026-07-13" → „13.07." */
-export function shortDay(day: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
-  return m ? `${m[3]}.${m[2]}.` : day;
-}
-
 /** Zeitstempel in Millisekunden → „13.07.2026, 20:15". */
 export function germanDateTime(ms: number): string {
   return new Date(ms).toLocaleString("de-DE", {
