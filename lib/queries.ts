@@ -1,4 +1,11 @@
 import { exec, query } from "./db";
+import type {
+  GroupLoad,
+  HistogramRow,
+  HourBucket,
+  PlayerRecord,
+  StatsCoverage,
+} from "./playerInsights";
 
 /**
  * Alle Lese-Queries der Website an die Spiel-Datenbank.
@@ -1844,6 +1851,126 @@ export async function loadPeak(sinceMs: number): Promise<number> {
     [sinceMs]
   );
   return rows.length > 0 && rows[0].peak !== null ? Number(rows[0].peak) : 0;
+}
+
+// ─── Auswertungen über die Spielerzahlen ────────────────────────────────────
+//
+// Alle Abfragen hier rechnen mit der SUMME über alle Server je Zeitstempel:
+// server_statistics hat eine Zeile je Server und Messung, geschrieben alle fünf
+// Minuten vom Proxy. Proxies selbst stehen nicht drin, sonst wäre jeder Spieler
+// doppelt gezählt.
+
+/**
+ * Der Alltime-Rekord: höchste gleichzeitige Spielerzahl und der Zeitpunkt, an
+ * dem sie ZUERST erreicht wurde.
+ *
+ * Bei Gleichstand gewinnt der ältere Zeitstempel – wird der Rekord später noch
+ * einmal eingestellt, bleibt es beim Tag, an dem er aufgestellt wurde.
+ */
+export async function loadAllTimeRecord(): Promise<PlayerRecord | null> {
+  const rows = await query<{ ts: string; total: string }>(
+    `SELECT ts, total FROM (
+       SELECT timestamp AS ts, SUM(online_players) AS total
+       FROM server_statistics
+       GROUP BY timestamp
+     ) x
+     ORDER BY total DESC, ts ASC
+     LIMIT 1`
+  );
+  if (rows.length === 0) return null;
+  return { players: Number(rows[0].total), at: Number(rows[0].ts) };
+}
+
+/**
+ * Verlauf in Stundenschritten – Grundlage der Muster-Auswertungen.
+ *
+ * Bewusst in UTC-Stunden gebucketet: auf Berliner Uhrzeit und Wochentag rechnet
+ * erst {@link buildPatterns} um. Ein Jahr Aufzeichnung sind 8760 Zeilen, das
+ * lässt sich bequem in der Anwendung weiterverarbeiten.
+ */
+export async function loadHourlyPlayers(sinceMs: number): Promise<HourBucket[]> {
+  const rows = await query<{ h: string; avg_total: string; max_total: string; n: string }>(
+    `SELECT FLOOR(ts / 3600000) AS h,
+            AVG(total) AS avg_total,
+            MAX(total) AS max_total,
+            COUNT(*) AS n
+     FROM (SELECT timestamp AS ts, SUM(online_players) AS total
+           FROM server_statistics
+           WHERE timestamp >= ?
+           GROUP BY timestamp) x
+     GROUP BY h ORDER BY h ASC`,
+    [sinceMs]
+  );
+  return rows.map((r) => ({
+    t: Number(r.h) * 3600_000,
+    avg: Number(r.avg_total),
+    max: Number(r.max_total),
+    samples: Number(r.n),
+  }));
+}
+
+/**
+ * Wie oft welche Gesamt-Spielerzahl gemessen wurde.
+ *
+ * Daraus wird die Verteilung: „an wie viel Prozent der Zeit waren wie viele
+ * Spieler online“. Bewusst über die einzelnen Messungen und nicht über
+ * Stundenmittel – gemittelt wären die Ausschläge nach oben und unten weg.
+ */
+export async function loadPlayerHistogram(sinceMs: number): Promise<HistogramRow[]> {
+  const rows = await query<{ total: string; n: string }>(
+    `SELECT total, COUNT(*) AS n FROM (
+       SELECT timestamp, SUM(online_players) AS total
+       FROM server_statistics
+       WHERE timestamp >= ?
+       GROUP BY timestamp
+     ) x
+     GROUP BY total ORDER BY total ASC`,
+    [sinceMs]
+  );
+  return rows.map((r) => ({ players: Number(r.total), samples: Number(r.n) }));
+}
+
+/**
+ * Ø und Höchststand je Servergruppe.
+ *
+ * Gruppiert wird über den Namen vor dem ersten Bindestrich, also „Lobby-1“ und
+ * „Lobby-2“ zusammen als „Lobby“. Einzelne Dienste kommen und gehen, ihre Namen
+ * wären als Zeitreihe wertlos.
+ *
+ * Läuft eine Gruppe zeitweise gar nicht, fehlen ihre Zeilen ganz und zählen
+ * nicht als null Spieler – ihr Ø beschreibt also die Zeit, in der sie lief.
+ */
+export async function loadGroupLoad(sinceMs: number): Promise<GroupLoad[]> {
+  const rows = await query<{ grp: string; avg_total: string; max_total: string }>(
+    `SELECT grp, AVG(total) AS avg_total, MAX(total) AS max_total FROM (
+       SELECT timestamp,
+              SUBSTRING_INDEX(server_name, '-', 1) AS grp,
+              SUM(online_players) AS total
+       FROM server_statistics
+       WHERE timestamp >= ?
+       GROUP BY timestamp, grp
+     ) x
+     GROUP BY grp ORDER BY avg_total DESC`,
+    [sinceMs]
+  );
+  return rows.map((r) => ({
+    group: r.grp,
+    avg: Math.round(Number(r.avg_total) * 10) / 10,
+    max: Number(r.max_total),
+  }));
+}
+
+/** Seit wann aufgezeichnet wird und wie viele Messungen es gibt. */
+export async function loadStatsCoverage(): Promise<StatsCoverage> {
+  const rows = await query<{ first_ts: string | null; n: string }>(
+    `SELECT MIN(timestamp) AS first_ts, COUNT(DISTINCT timestamp) AS n
+     FROM server_statistics`
+  );
+  if (rows.length === 0) return { firstAt: null, snapshots: 0 };
+  return {
+    firstAt: rows[0].first_ts !== null ? Number(rows[0].first_ts) : null,
+    snapshots: Number(rows[0].n),
+  };
 }
 
 // ─── Karten-Sync (smpg_map_sync, befüllt vom SMPGlobal-MapSync) ─────────────

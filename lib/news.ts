@@ -1,5 +1,6 @@
 import type mysql from "mysql2/promise";
 import { exec, query, db } from "@/lib/db";
+import { leadingImageIndex } from "@/lib/mcformat";
 import {
   isNewsType,
   newsType,
@@ -157,6 +158,36 @@ export async function setPostReaction(
 }
 
 /**
+ * Setzt das Vorschaubild auf das Bild, das im Text ganz oben steht.
+ *
+ * Ohne Titelbild bleibt es beim ersten Bild des Beitrags (siehe SELECT_POST).
+ * Wer aber einen fertigen Beitrag nachträglich mit einem Aufmacher versieht,
+ * fügt das Bild oben ein – es bekommt dabei den höchsten Index. Dann zeigte die
+ * Übersicht ein anderes Bild als der Beitrag selbst.
+ */
+async function attachCovers(posts: NewsPost[]): Promise<NewsPost[]> {
+  const wanted = posts
+    .map((post) => ({ post, idx: leadingImageIndex(post.body) }))
+    .filter((w): w is { post: NewsPost; idx: number } => w.idx !== null);
+  if (wanted.length === 0) return posts;
+  try {
+    const rows = await query<{ post_id: number; idx: number; id: number }>(
+      `SELECT post_id, idx, id FROM smpg_news_images
+       WHERE (post_id, idx) IN (${wanted.map(() => "(?,?)").join(",")})`,
+      wanted.flatMap((w) => [w.post.id, w.idx])
+    );
+    const byKey = new Map(rows.map((r) => [`${r.post_id}:${r.idx}`, Number(r.id)]));
+    for (const w of wanted) {
+      const id = byKey.get(`${w.post.id}:${w.idx}`);
+      if (id !== undefined) w.post.coverId = id;
+    }
+    return posts;
+  } catch {
+    return posts;
+  }
+}
+
+/**
  * Lädt die Verfasser zu mehreren Beiträgen in EINER Abfrage nach.
  *
  * Beiträge, die vor der Umstellung entstanden sind, haben keine Zeilen in
@@ -218,7 +249,7 @@ export async function loadPublishedNews(limit = 50, type?: string): Promise<News
        LIMIT ${Math.max(1, Math.min(200, Math.floor(limit)))}`,
       params
     );
-    return attachReactions(await attachAuthors(rows.map(mapRow)));
+    return attachReactions(await attachCovers(await attachAuthors(rows.map(mapRow))));
   } catch {
     return [];
   }
@@ -230,7 +261,7 @@ export async function loadAllNews(): Promise<NewsPost[]> {
     const rows = await query<Row>(
       `${SELECT_POST} ORDER BY n.pinned DESC, n.created_at DESC, n.id DESC LIMIT 500`
     );
-    return attachReactions(await attachAuthors(rows.map(mapRow)));
+    return attachReactions(await attachCovers(await attachAuthors(rows.map(mapRow))));
   } catch {
     return [];
   }
@@ -250,7 +281,7 @@ export async function loadNewsPost(
       [id]
     );
     if (rows.length === 0) return null;
-    return (await attachReactions(await attachAuthors([mapRow(rows[0])])))[0];
+    return (await attachReactions(await attachCovers(await attachAuthors([mapRow(rows[0])]))))[0];
   } catch {
     return null;
   }

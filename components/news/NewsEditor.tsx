@@ -4,9 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bold, Italic, Underline, Strikethrough, Sparkles, Eraser,
-  ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X, Heading,
+  ImagePlus, Save, Trash2, Eye, Pin, EyeOff, Loader2, X, Heading, ChevronRight,
 } from "lucide-react";
-import { LEGACY_COLORS, LEGACY_COLOR_NAMES, toSmallCaps } from "@/lib/mcformat";
+import {
+  LEGACY_COLORS,
+  LEGACY_COLOR_NAMES,
+  leadingImageIndex,
+  toSmallCaps,
+} from "@/lib/mcformat";
 import {
   LIMITS,
   NEWS_TYPES,
@@ -14,7 +19,7 @@ import {
   type NewsImage,
   type NewsTypeId,
 } from "@/lib/newsTypes";
-import McText from "./McText";
+import NewsArticleView, { type ArticleData } from "./NewsArticleView";
 import {
   collectRange, flattenEditor, makeImageNode, makeStyledNode, mcToNodes, nodesToMc,
   rangeFromOffsets, textOffsetOf, type EditorStyle,
@@ -60,6 +65,9 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
   );
 
   const [body, setBody] = useState(post?.body ?? "");
+  // Die Vorschau baut den ganzen Beitrag samt Bildern nach – standardmäßig
+  // eingeklappt, damit sie beim Schreiben nicht ständig unter einem steht.
+  const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [gradientFrom, setGradientFrom] = useState("#4FA3D9");
@@ -448,6 +456,29 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
     [draftImages, post?.id]
   );
 
+  /** Index des Bildes, das ganz oben im Text steht – oder null. */
+  const titleImageIdx = useMemo(() => leadingImageIndex(body), [body]);
+
+  // Der Beitrag, wie ihn die Vorschau anzeigt. Leere Felder bekommen einen
+  // Platzhalter – sonst stünde in der Vorschau eine leere Überschrift.
+  const previewPost: ArticleData = useMemo(() => {
+    const names = authors.map((a) => a.trim()).filter(Boolean);
+    return {
+      type,
+      title: title.trim() || "Ohne Titel",
+      summary: summary.trim(),
+      body,
+      markdown,
+      pinned,
+      published,
+      createdAt: post?.createdAt ?? todayStamp(),
+      authors: (names.length > 0 ? names : [currentUser || "Unbekannt"]).map((name) => ({
+        name,
+        uuid: null,
+      })),
+    };
+  }, [type, title, summary, body, markdown, pinned, published, post?.createdAt, authors, currentUser]);
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── Kopfdaten ── */}
@@ -710,18 +741,30 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
                   alt={`Bild ${img.idx}`}
                   className="h-14 w-20 shrink-0 rounded-lg border border-white/10 object-cover"
                 />
-                <input
-                  value={img.caption}
-                  onChange={(e) =>
-                    setDraftImages((prev) =>
-                      prev.map((i) =>
-                        i.idx === img.idx ? { ...i, caption: e.target.value } : i
+                {img.idx === titleImageIdx ? (
+                  // Das Titelbild bekommt keine Unterschrift – es steht oben
+                  // ohne Rahmen und Text über dem Beitrag.
+                  <p className="flex-1 text-xs text-neutral-500">
+                    <span className="mr-2 rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+                      Titelbild
+                    </span>
+                    Steht ganz oben im Text und wird deshalb groß über dem Beitrag gezeigt –
+                    im Text selbst erscheint es nicht noch einmal.
+                  </p>
+                ) : (
+                  <input
+                    value={img.caption}
+                    onChange={(e) =>
+                      setDraftImages((prev) =>
+                        prev.map((i) =>
+                          i.idx === img.idx ? { ...i, caption: e.target.value } : i
+                        )
                       )
-                    )
-                  }
-                  placeholder="Bildunterschrift (optional)"
-                  className={`${inputClass} flex-1`}
-                />
+                    }
+                    placeholder="Bildunterschrift (optional)"
+                    className={`${inputClass} flex-1`}
+                  />
+                )}
                 <button
                   type="button"
                   onClick={() => removeImage(img.idx)}
@@ -736,18 +779,33 @@ export default function NewsEditor({ post, images, currentUser }: Props) {
         </div>
       )}
 
-      {/* ── Vorschau ── */}
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-5">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+      {/* ── Vorschau ──
+          Zeigt den Beitrag mit derselben Komponente wie die fertige Seite, also
+          samt Aufmacherbild und Kopfdaten. Der Kasten hat deshalb die
+          Seitenfarbe und innen keinen seitlichen Abstand – so stimmen auch die
+          Breiten mit der echten Seite überein. */}
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0b]">
+        <button
+          type="button"
+          onClick={() => setShowPreview((v) => !v)}
+          aria-expanded={showPreview}
+          className="flex w-full items-center gap-2 px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 transition-colors hover:bg-white/[0.03] hover:text-neutral-300"
+        >
+          <ChevronRight
+            className={`h-3.5 w-3.5 transition-transform ${showPreview ? "rotate-90" : ""}`}
+          />
           <Eye className="h-3.5 w-3.5" />
           Vorschau
-        </div>
-        <McText
-          text={body}
-          images={previewImages}
-          headings={markdown}
-          className="text-[15px]"
-        />
+          <span className="ml-auto text-[11px] font-medium normal-case tracking-normal text-neutral-600">
+            {showPreview ? "Einklappen" : "Ausklappen"}
+          </span>
+        </button>
+
+        {showPreview && (
+          <div className="border-t border-white/10 py-8">
+            <NewsArticleView post={previewPost} images={previewImages} />
+          </div>
+        )}
       </div>
 
       {/* ── Aktionen ── */}
@@ -882,6 +940,16 @@ function atLineStart(): boolean {
 
   const prev = node.childNodes[range.startOffset - 1];
   return prev === undefined || prev === null || prev.nodeName === "BR";
+}
+
+/**
+ * Heutiges Datum im Format der Datenbank – als Platzhalter für das
+ * Veröffentlichungsdatum eines Beitrags, den es noch gar nicht gibt.
+ */
+function todayStamp(): string {
+  const d = new Date();
+  const zwei = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${zwei(d.getMonth() + 1)}-${zwei(d.getDate())} 00:00:00`;
 }
 
 /** Bytes lesbar machen: 13421772 → „12,8 MB". */

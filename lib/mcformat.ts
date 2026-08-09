@@ -235,6 +235,35 @@ function parseSegment(text: string, start: McStyle): McNode[] {
   return out;
 }
 
+// ─── Aufmacherbild ──────────────────────────────────────────────────────────
+
+/**
+ * Ein Bild ganz am Anfang des Beitrags: davor darf nur Leerraum oder
+ * Formatierung stehen, kein sichtbarer Text. Der Umbruch dahinter gehört mit
+ * dazu – der Editor setzt Bilder immer auf eine eigene Zeile.
+ */
+const LEADING_IMAGE =
+  /^(?:\s|&#[0-9a-f]{6}|<#[0-9a-f]{6}>|[&§][0-9a-fk-or])*\[img:(\d+)\][ \t]*\r?\n?/i;
+
+/**
+ * Index des Titelbilds, oder null, wenn der Beitrag nicht mit einem Bild
+ * beginnt.
+ *
+ * Steht ein Bild an allererster Stelle, gehört es zu keinem Absatz – es ist als
+ * Aufmacher gemeint. Es wird deshalb oben groß gezeigt und aus dem Text
+ * genommen, sonst stünde dasselbe Bild zweimal auf der Seite. Ein Bild mitten
+ * im Text bleibt dagegen an seiner Stelle, dort gehört es zum Zusammenhang.
+ */
+export function leadingImageIndex(text: string): number | null {
+  const m = LEADING_IMAGE.exec(text ?? "");
+  return m ? Number(m[1]) : null;
+}
+
+/** Entfernt genau den Platzhalter, den {@link leadingImageIndex} meldet. */
+export function stripLeadingImage(text: string): string {
+  return (text ?? "").replace(LEADING_IMAGE, "");
+}
+
 /** Text ohne jede Formatierung – für Kurzfassungen, Titel-Tags und Suche. */
 export function mcPlainText(text: string): string {
   const parts: string[] = [];
