@@ -24,6 +24,8 @@ export type TebexAlert = {
   currency?: string;
   /** Tebex-Transaktionsnummer – nur fürs Log, nicht fürs Overlay. */
   txn?: string;
+  /** "renewal" = Abo-Verlängerung. Fehlt oder "purchase" = normaler Kauf. */
+  kind?: "purchase" | "renewal";
   /** true, wenn über /api/alerts/test ausgelöst. */
   test?: boolean;
 };
@@ -32,6 +34,8 @@ type Bus = {
   seq: number;
   clients: Set<(a: TebexAlert) => void>;
   history: TebexAlert[];
+  /** Transaktionsnummer -> Zeitpunkt, an dem sie gemeldet wurde. */
+  seenTxn: Map<string, number>;
 };
 
 const globalForBus = globalThis as unknown as { __tebexAlertBus?: Bus };
@@ -40,6 +44,7 @@ const bus: Bus = (globalForBus.__tebexAlertBus ??= {
   seq: 0,
   clients: new Set(),
   history: [],
+  seenTxn: new Map(),
 });
 
 /** Wie viele Alerts für einen Wiederverbindungs-Nachschlag vorgehalten werden. */
@@ -61,6 +66,34 @@ export function pushAlert(alert: Omit<TebexAlert, "id">): TebexAlert {
     }
   }
   return full;
+}
+
+/** Wie lange eine Transaktionsnummer als "schon gemeldet" gilt. */
+const TXN_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Transaktionsnummer beanspruchen. Liefert `false`, wenn zu dieser Nummer in
+ * den letzten Minuten schon ein Alert lief.
+ *
+ * Hintergrund: Ein Abo-Kauf kann sowohl `payment.completed` als auch
+ * `recurring-payment.started` auslösen – die Tebex-Doku legt sich nicht fest.
+ * Beide tragen dieselbe Transaktionsnummer. Ohne diese Sperre stünde derselbe
+ * Kauf zweimal im Stream, mit doppeltem Sound.
+ *
+ * Ohne Nummer (sollte nicht vorkommen) wird durchgelassen: lieber ein Alert
+ * zu viel als ein verschluckter Kauf.
+ */
+export function claimTransaction(txn: string | undefined): boolean {
+  if (!txn) return true;
+
+  const now = Date.now();
+  for (const [key, seenAt] of bus.seenTxn) {
+    if (now - seenAt > TXN_WINDOW_MS) bus.seenTxn.delete(key);
+  }
+
+  if (bus.seenTxn.has(txn)) return false;
+  bus.seenTxn.set(txn, now);
+  return true;
 }
 
 /** Overlay anmelden. Rückgabe: Funktion zum Abmelden. */

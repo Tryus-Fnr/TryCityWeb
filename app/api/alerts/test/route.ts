@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
  *   https://trycity.net/api/alerts/test?key=DEIN_KEY
  *
  * Optional: &buyer=Name &product=VIP%20Rang &amount=9.99
+ *           &kind=renewal  (zeigt "hat verlängert!" statt "hat gekauft!")
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -26,6 +27,7 @@ export async function GET(req: Request) {
     products: [url.searchParams.get("product")?.trim() || "1x VIP Rang"],
     amount: Number.isFinite(amount) ? amount : undefined,
     currency: url.searchParams.get("currency")?.trim() || "EUR",
+    kind: url.searchParams.get("kind") === "renewal" ? "renewal" : "purchase",
     test: true,
   });
 

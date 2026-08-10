@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { pushAlert } from "@/lib/tebexAlerts";
+import { claimTransaction, pushAlert } from "@/lib/tebexAlerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,19 +21,34 @@ export const dynamic = "force-dynamic";
  *    (Feldreihenfolge, Leerzeichen, Zahlenformat).
  */
 
-/** Was Tebex unter `subject` schickt – nur die Felder, die hier gebraucht werden. */
+/** Ein Zahlungsvorgang – nur die Felder, die hier gebraucht werden. */
+type TebexPayment = {
+  transaction_id?: string;
+  price?: { amount?: number; currency?: string };
+  price_paid?: { amount?: number; currency?: string };
+  customer?: {
+    /** Bei Minecraft-Stores der Spielername. Kann null sein. */
+    username?: { id?: string; username?: string } | null;
+    // Tebex schickt daneben first_name, last_name, email, ip, country und
+    // postal_code. Nichts davon wird gelesen - siehe toAlert().
+  };
+  products?: Array<{ name?: string; quantity?: number }>;
+};
+
+/**
+ * Bei `payment.completed` ist `subject` selbst der Zahlungsvorgang.
+ *
+ * Bei den Abo-Ereignissen ist `subject` dagegen das **Abonnement**
+ * (`reference`, `next_payment_at`, `status`, `fail_count` …) und die Zahlung
+ * steckt verschachtelt darin: `initial_payment` beim Start, `last_payment` bei
+ * jeder Verlängerung.
+ */
 type TebexPayload = {
   id?: string;
   type?: string;
-  subject?: {
-    transaction_id?: string;
-    price?: { amount?: number; currency?: string };
-    price_paid?: { amount?: number; currency?: string };
-    customer?: {
-      username?: { id?: string; username?: string };
-      name?: string;
-    };
-    products?: Array<{ name?: string; quantity?: number }>;
+  subject?: TebexPayment & {
+    initial_payment?: TebexPayment;
+    last_payment?: TebexPayment;
   };
 };
 
@@ -76,9 +91,16 @@ function logSignatureMismatch(raw: string, given: string, secret: string, expect
   );
 }
 
-/** Kaufzeile fürs Overlay bauen. E-Mail-Adressen bleiben bewusst außen vor. */
-function toAlert(p: TebexPayload) {
-  const s = p.subject ?? {};
+/**
+ * Kaufzeile fürs Overlay bauen.
+ *
+ * Als Käufername kommt ausschließlich `customer.username.username` in Frage –
+ * der Minecraft-Name. Tebex liefert daneben auch `first_name`/`last_name`,
+ * also den bürgerlichen Namen des Kunden. Der wird bewusst **nicht** benutzt:
+ * fehlt der Spielername, steht im Stream lieber "Jemand" als der echte Name
+ * eines Käufers vor Publikum. E-Mail, IP und Anschrift ebenso wenig.
+ */
+function toAlert(s: TebexPayment, kind: "purchase" | "renewal") {
   const price = s.price ?? s.price_paid;
 
   const products = (s.products ?? [])
@@ -91,12 +113,40 @@ function toAlert(p: TebexPayload) {
     .filter((x): x is string => x !== null);
 
   return {
-    buyer: s.customer?.username?.username?.trim() || s.customer?.name?.trim() || "Jemand",
+    buyer: s.customer?.username?.username?.trim() || "Jemand",
     products: products.length > 0 ? products : ["etwas im Store"],
     amount: typeof price?.amount === "number" ? price.amount : undefined,
     currency: price?.currency,
     txn: s.transaction_id,
+    kind,
   };
+}
+
+/**
+ * Aus dem Ereignis den Zahlungsvorgang und die Art des Alerts holen.
+ * `null` = dieses Ereignis soll kein Overlay auslösen.
+ */
+function extractPayment(
+  payload: TebexPayload
+): { payment: TebexPayment; kind: "purchase" | "renewal" } | null {
+  const s = payload.subject;
+  if (!s) return null;
+
+  switch (payload.type) {
+    case "payment.completed":
+      return { payment: s, kind: "purchase" };
+
+    // Abo startet: der erste Kauf steckt in initial_payment
+    case "recurring-payment.started":
+      return { payment: s.initial_payment ?? s.last_payment ?? s, kind: "purchase" };
+
+    // Abo verlängert: die frische Zahlung steckt in last_payment
+    case "recurring-payment.renewed":
+      return { payment: s.last_payment ?? s.initial_payment ?? s, kind: "renewal" };
+
+    default:
+      return null;
+  }
 }
 
 export async function POST(req: Request) {
@@ -120,17 +170,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ id: payload.id });
   }
 
-  if (payload.type === "payment.completed") {
-    const alert = toAlert(payload);
+  const treffer = extractPayment(payload);
+
+  if (!treffer) {
+    // Rückbuchungen, Kündigungen o.ä. sollen im Stream nichts auslösen,
+    // aber im Log sichtbar sein.
+    console.log("[tebex/webhook] Ereignis ohne Overlay:", payload.type);
+  } else if (!claimTransaction(treffer.payment.transaction_id)) {
+    // Derselbe Kauf kam schon über ein anderes Ereignis herein
+    console.log(
+      "[tebex/webhook] Doppelt, übersprungen:",
+      payload.type,
+      treffer.payment.transaction_id
+    );
+  } else {
+    const alert = toAlert(treffer.payment, treffer.kind);
     pushAlert(alert);
     console.log(
-      `[tebex/webhook] Kauf: ${alert.buyer} – ${alert.products.join(", ")}` +
+      `[tebex/webhook] ${alert.kind === "renewal" ? "Verlängerung" : "Kauf"}: ` +
+        `${alert.buyer} – ${alert.products.join(", ")}` +
         (alert.amount != null ? ` (${alert.amount} ${alert.currency ?? ""})` : "") +
         ` [${alert.txn ?? "?"}]`
     );
-  } else {
-    // Rückbuchungen o.ä. sollen im Stream nichts auslösen, aber sichtbar sein.
-    console.log("[tebex/webhook] Ereignis ohne Overlay:", payload.type);
   }
 
   // Immer 200 – bei allem anderen stellt Tebex stundenlang erneut zu.

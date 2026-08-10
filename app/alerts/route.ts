@@ -143,7 +143,9 @@ const HTML = `<!DOCTYPE html>
   }
 
   function show(a) {
-    title.innerHTML = '<span class="name"></span> hat gekauft!';
+    // Abo-Verlängerung ist kein Neukauf – das soll man auch sehen
+    var verb = a.kind === "renewal" ? " hat verlängert!" : " hat gekauft!";
+    title.innerHTML = '<span class="name"></span>' + verb;
     title.querySelector(".name").textContent = a.buyer;
     products.textContent = (a.products || []).join(", ");
     // Der Preis kommt im Ereignis mit (steht im Log), wird aber bewusst

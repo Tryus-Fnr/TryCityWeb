@@ -158,7 +158,17 @@ ALERT_OVERLAY_KEY=<openssl rand -hex 24>
 **Tebex-Panel** → Webhook Endpoints → Add Endpoint:
 
 - URL: `https://trycity.net/api/tebex/webhook`
-- Event: `payment.completed`
+- Events: **Payment Completed**, **Recurring Payment Started**, **Recurring Payment Renewed**
+
+Bei den beiden Abo-Ereignissen ist `subject` das Abonnement, nicht die Zahlung –
+die steckt darin als `initial_payment` (Start) bzw. `last_payment`
+(Verlängerung). Ob ein Abo-Start zusätzlich `payment.completed` auslöst, sagt
+die Tebex-Doku nicht; der Webhook entdoppelt deshalb über die
+Transaktionsnummer (10-Minuten-Fenster), sodass ein Kauf in jedem Fall genau
+einen Alert ergibt. Verlängerungen zeigen „hat verlängert!" statt „hat gekauft!".
+
+Alle übrigen Ereignisse (Rückbuchung, Kündigung, Abo-Ende) werden mit 200
+quittiert und nur geloggt – im Stream lösen sie nichts aus.
 
 Beim Speichern schickt Tebex sofort ein `validation.webhook` und erwartet die
 mitgeschickte `id` zurück. Das erledigt die Route – sie muss dafür aber schon
