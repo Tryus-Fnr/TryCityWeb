@@ -16,6 +16,8 @@
  *   &duration=8000     Anzeigedauer je Alert in Millisekunden
  *   &sound=/pfad.mp3   eigene Sounddatei statt /alerts/alert.mp3
  *   &debug=1           Verbindungsstatus einblenden (nicht für den Stream)
+ *   &demo=1            Beispiel-Alerts in Schleife, ohne Server und ohne
+ *                      Schlüssel – zum Ausrichten in OBS
  */
 
 export const dynamic = "force-dynamic";
@@ -77,6 +79,19 @@ const HTML = `<!DOCTYPE html>
     white-space: nowrap;
   }
   #title .name { color: #fbbf24; }
+  /*
+   * Wellen-Animation auf dem Namen: jeder Buchstabe ist ein eigenes span und
+   * startet minimal später als der davor - dadurch läuft die Welle durch.
+   * inline-block ist Pflicht, auf reinen Inline-Elementen wirkt transform nicht.
+   */
+  #title .name .wv {
+    display: inline-block;
+    animation: wave 1.6s ease-in-out infinite;
+  }
+  @keyframes wave {
+    0%, 55%, 100% { transform: translateY(0); }
+    25%           { transform: translateY(-9px); }
+  }
   #products {
     font-size: 22px; font-weight: 700; color: #f5f5f5;
     text-shadow: 0 2px 4px rgba(0,0,0,.95), 0 0 3px rgba(0,0,0,1), 0 0 16px rgba(0,0,0,.7);
@@ -109,6 +124,7 @@ const HTML = `<!DOCTYPE html>
   var DURATION   = parseInt(p.get("duration") || "8000", 10);
   var SOUND      = p.get("sound") || "/alerts/alert.mp3";
   var DEBUG      = p.get("debug") === "1";
+  var DEMO       = p.get("demo") === "1";
 
   var card     = document.getElementById("card");
   var head     = document.getElementById("head");
@@ -146,7 +162,18 @@ const HTML = `<!DOCTYPE html>
     // Abo-Verlängerung ist kein Neukauf – das soll man auch sehen
     var verb = a.kind === "renewal" ? " hat verlängert!" : " hat gekauft!";
     title.innerHTML = '<span class="name"></span>' + verb;
-    title.querySelector(".name").textContent = a.buyer;
+
+    // Name buchstabenweise aufbauen, jeder mit eigenem Versatz -> Welle.
+    // Array.from statt split(""), sonst zerlegt es Zeichen außerhalb der BMP.
+    var nameEl = title.querySelector(".name");
+    Array.from(String(a.buyer)).forEach(function (ch, i) {
+      var s = document.createElement("span");
+      s.className = "wv";
+      s.style.animationDelay = (i * 0.06).toFixed(2) + "s";
+      // Ein normales Leerzeichen fällt bei inline-block in sich zusammen
+      s.textContent = ch === " " ? "\\u00a0" : ch;
+      nameEl.appendChild(s);
+    });
     products.textContent = (a.products || []).join(", ");
     // Der Preis kommt im Ereignis mit (steht im Log), wird aber bewusst
     // nicht eingeblendet – im Stream geht niemanden an, was etwas gekostet hat.
@@ -171,6 +198,26 @@ const HTML = `<!DOCTYPE html>
         next();
       }, 500);
     }, DURATION);
+  }
+
+  // --- Vorschau ------------------------------------------------------------
+  // &demo=1 spielt Beispiel-Alerts in Schleife, ohne Server und ohne Schlüssel.
+  // Zum Aussuchen von Position, Größe und Lautstärke, bevor es live geht.
+  if (DEMO) {
+    var beispiele = [
+      { buyer: "Tryus",  products: ["1x VIP Rang"],  kind: "purchase" },
+      { buyer: "Notch",  products: ["3x Schlüssel"], kind: "renewal" },
+      { buyer: "Jemand", products: ["etwas im Store"], kind: "purchase" },
+    ];
+    var nr = 0;
+    var spiele = function () {
+      queue.push(beispiele[nr++ % beispiele.length]);
+      next();
+    };
+    spiele();
+    setInterval(spiele, DURATION + 1500);
+    status("Vorschau-Modus");
+    return;
   }
 
   // --- Verbindung ----------------------------------------------------------
