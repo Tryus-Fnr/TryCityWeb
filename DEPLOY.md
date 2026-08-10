@@ -144,6 +144,48 @@ npm run build
 systemctl restart trycityweb
 ```
 
+## 8. Store-Alerts für OBS (Tebex)
+
+Kauf im Tebex-Store → Webhook → Overlay-Seite in OBS (Text + Sound).
+
+**Env** (in `/opt/trycityweb/.env`):
+
+```
+TEBEX_WEBHOOK_SECRET=<Secret Key aus dem Tebex-Panel>
+ALERT_OVERLAY_KEY=<openssl rand -hex 24>
+```
+
+**Tebex-Panel** → Webhook Endpoints → Add Endpoint:
+
+- URL: `https://trycity.net/api/tebex/webhook`
+- Event: `payment.completed`
+
+Beim Speichern schickt Tebex sofort ein `validation.webhook` und erwartet die
+mitgeschickte `id` zurück. Das erledigt die Route – sie muss dafür aber schon
+live sein, also **erst deployen, dann im Panel speichern**.
+
+**OBS**: Browserquelle auf
+`https://trycity.net/alerts?key=<ALERT_OVERLAY_KEY>`, 1920×1080,
+„Quelle herunterfahren, wenn nicht sichtbar" **aus**.
+
+**Testen** ohne Kauf:
+`https://trycity.net/api/alerts/test?key=<ALERT_OVERLAY_KEY>`
+(die Antwort enthält `overlays` – steht da 0, ist keine Browserquelle verbunden).
+
+Der Ereignis-Strom ist eine Dauerverbindung (SSE). Die Route setzt dafür
+`X-Accel-Buffering: no`, damit nginx die Ausgabe nicht sammelt. Falls es doch
+klemmt, im nginx-Server-Block **vor** `location /` ergänzen:
+
+```nginx
+location /api/alerts/stream {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_buffering off;
+    proxy_read_timeout 1h;
+}
+```
+
 ## Wichtig
 
 - Der Ingame-Login funktioniert nur, wenn das SMPGlobal-Plugin mit dem
