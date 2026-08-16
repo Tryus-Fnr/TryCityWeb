@@ -60,6 +60,70 @@ CREATE TABLE IF NOT EXISTS `smpg_news_images` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================================
+-- Vorschläge der Spieler.
+-- Reine Website-Angelegenheit: eingereicht, abgestimmt und verwaltet wird
+-- ausschließlich unter /vorschlaege. Ingame gibt es dafür nichts.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `smpg_suggestions` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `author_uuid` VARCHAR(36) NOT NULL,
+  `author_name` VARCHAR(16) NOT NULL,
+  `category` VARCHAR(24) NOT NULL DEFAULT 'sonstiges',
+  `title` VARCHAR(120) NOT NULL,
+  -- Titel in Kleinbuchstaben ohne Umlaute und Satzzeichen. Grundlage der
+  -- Duplikat-Suche (lib/similarity.ts) – so muss die nicht bei jeder Anfrage
+  -- alle Titel neu putzen.
+  `title_norm` VARCHAR(160) NOT NULL DEFAULT '',
+  `body` TEXT NOT NULL,
+  -- offen | geplant | umgesetzt | abgelehnt | duplikat
+  `status` VARCHAR(16) NOT NULL DEFAULT 'offen',
+  -- Anmerkung des Teams, für alle sichtbar.
+  `staff_note` VARCHAR(500) NOT NULL DEFAULT '',
+  -- Bei status='duplikat': der Vorschlag, der dasselbe abdeckt.
+  `duplicate_of` INT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_status` (`status`, `created_at`),
+  INDEX `idx_author` (`author_uuid`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Eine Stimme je Person und Vorschlag – das stellt der Primärschlüssel sicher,
+-- unabhängig davon, was die Schnittstelle durchlässt.
+CREATE TABLE IF NOT EXISTS `smpg_suggestion_votes` (
+  `suggestion_id` INT NOT NULL,
+  `uuid` VARCHAR(36) NOT NULL,
+  -- 1 = dafür, -1 = dagegen
+  `value` TINYINT NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`suggestion_id`, `uuid`),
+  CONSTRAINT `fk_suggestion_vote` FOREIGN KEY (`suggestion_id`)
+    REFERENCES `smpg_suggestions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
+-- Bug-Meldungen.
+-- Die Tabelle `smpg_bugs` legt das SMPGlobal-Plugin an (BugBridge) und liest
+-- sie im Admin-GUI (/bug admin). Gemeldet wird seit der Umstellung nur noch
+-- auf der Website – ingame zeigt /bug nur noch den Link.
+--
+-- Die Bilder hängen bewusst ohne Fremdschlüssel daran: `smpg_bugs` entsteht im
+-- Plugin, und eine Beziehung auf eine Tabelle, die woanders angelegt wird,
+-- scheitert je nach Engine beim Anlegen. Aufgeräumt wird an beiden Stellen von
+-- Hand (BugBridge.delete und lib/feedback.ts).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `smpg_bug_images` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `bug_id` INT NOT NULL,
+  `idx` INT NOT NULL,
+  `mime` VARCHAR(32) NOT NULL DEFAULT 'image/webp',
+  `data` LONGTEXT NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_bug` (`bug_id`, `idx`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
 -- Eigener MySQL-User für die Website:
 --  - SELECT auf alles (Statistiken, Preise, Historie)
 --  - Schreiben nur auf die Tabellen, die der Admin-Bereich wirklich pflegt
@@ -77,6 +141,15 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_images` TO 'try
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_authors` TO 'trycity_web'@'localhost';
 -- Reaktionen auf Beiträge. Reine Website-Angelegenheit, ingame gibt es sie nicht.
 GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_news_reactions` TO 'trycity_web'@'localhost';
+
+-- Vorschläge und Stimmen: eingereicht wird nur hier, gelöscht vom Team oder
+-- vom Verfasser selbst.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_suggestions`       TO 'trycity_web'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_suggestion_votes`  TO 'trycity_web'@'localhost';
+
+-- Bug-Meldungen: gemeldet wird auf der Website, verwaltet hier und ingame.
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_bugs`              TO 'trycity_web'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `<DATENBANK>`.`smpg_bug_images`        TO 'trycity_web'@'localhost';
 
 -- Preis-Verwaltung im Admin-Bereich: dauerhafte Einstellungen und Metas.
 -- Bewusst ohne DELETE – aus dem Web wird nichts gelöscht, nur geändert und

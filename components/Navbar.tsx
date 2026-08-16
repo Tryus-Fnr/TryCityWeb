@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper, Swords, Home, ExternalLink } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, TrendingUp, Hammer, Package, Crosshair, BarChart2, Map, Users, Layers, Shield, FileText, ShoppingCart, Server, Newspaper, Swords, Home, ExternalLink, Lightbulb, Bug } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -32,6 +32,12 @@ const ADMIN_TABS = [
 const MOD_TABS = [
   { href: "/mod",         label: "Mod-Panel",       desc: "Übersicht & Unban-Anträge",   Icon: Shield    },
   { href: "/mod/players", label: "Spieler-Suche",   desc: "Spielerinfos & Strafen",      Icon: Users     },
+  { href: "/mod/bugs",    label: "Bug-Meldungen",   desc: "Gemeldete Fehler & Bilder",   Icon: Bug       },
+];
+
+const COMMUNITY_TABS = [
+  { href: "/vorschlaege", label: "Vorschläge",  desc: "Ideen einreichen & abstimmen", Icon: Lightbulb },
+  { href: "/bugs",        label: "Fehler melden", desc: "Bug mit Screenshot melden",  Icon: Bug       },
 ];
 
 export default function Navbar({ session }: Props) {
@@ -41,12 +47,14 @@ export default function Navbar({ session }: Props) {
   const [marktOpen, setMarktOpen]     = useState(false);
   const [adminOpen, setAdminOpen]     = useState(false);
   const [modOpen, setModOpen]         = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const marktRef    = useRef<HTMLDivElement>(null);
-  const adminRef    = useRef<HTMLDivElement>(null);
-  const modRef      = useRef<HTMLDivElement>(null);
+  const userMenuRef  = useRef<HTMLDivElement>(null);
+  const marktRef     = useRef<HTMLDivElement>(null);
+  const adminRef     = useRef<HTMLDivElement>(null);
+  const modRef       = useRef<HTMLDivElement>(null);
+  const communityRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -55,6 +63,7 @@ export default function Navbar({ session }: Props) {
       if (marktRef.current    && !marktRef.current.contains(e.target as Node))    setMarktOpen(false);
       if (adminRef.current    && !adminRef.current.contains(e.target as Node))    setAdminOpen(false);
       if (modRef.current      && !modRef.current.contains(e.target as Node))      setModOpen(false);
+      if (communityRef.current && !communityRef.current.contains(e.target as Node)) setCommunityOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -92,6 +101,7 @@ export default function Navbar({ session }: Props) {
   const isMarktActive = MARKT_TABS.some((t) => isActive(t.href));
   const isAdminActive = ADMIN_TABS.some((t) => isActive(t.href));
   const isModActive   = MOD_TABS.some((t) => isActive(t.href));
+  const isCommunityActive = COMMUNITY_TABS.some((t) => isActive(t.href));
 
   // Am Handy dieselbe Gliederung wie am Desktop. Vorher war das eine einzige
   // flache Liste – als Admin 17 optisch gleiche Zeilen, in der man nichts
@@ -110,6 +120,7 @@ export default function Navbar({ session }: Props) {
       ],
     },
     { title: "Markt", items: MARKT_TABS },
+    { title: "Mitmachen", items: COMMUNITY_TABS },
     // Admins sahen die Mod-Seiten schon vorher mit – das bleibt so.
     ...(session?.isMod || session?.isAdmin ? [{ title: "Moderation", items: MOD_TABS }] : []),
     ...(session?.isAdmin ? [{ title: "Verwaltung", items: ADMIN_TABS }] : []),
@@ -153,7 +164,7 @@ export default function Navbar({ session }: Props) {
           {/* Markt Dropdown */}
           <div className="relative" ref={marktRef}>
             <button
-              onClick={() => { setMarktOpen((v) => !v); setAdminOpen(false); }}
+              onClick={() => { setMarktOpen((v) => !v); setAdminOpen(false); setModOpen(false); setCommunityOpen(false); }}
               className={topLinkClass(isMarktActive)}
             >
               Markt
@@ -189,6 +200,39 @@ export default function Navbar({ session }: Props) {
             Blog
           </Link>
 
+          {/* Mitmachen: Vorschläge und Fehlermeldungen */}
+          <div className="relative" ref={communityRef}>
+            <button
+              onClick={() => { setCommunityOpen((v) => !v); setMarktOpen(false); setAdminOpen(false); setModOpen(false); }}
+              className={topLinkClass(isCommunityActive)}
+            >
+              Mitmachen
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${communityOpen ? "rotate-180" : ""}`} />
+            </button>
+            {communityOpen && (
+              <div className="absolute left-0 top-full mt-2 w-64 overflow-hidden rounded-xl border border-white/10 bg-neutral-950/95 shadow-2xl backdrop-blur-sm">
+                <div className="p-1.5">
+                  {COMMUNITY_TABS.map(({ href, label, desc, Icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setCommunityOpen(false)}
+                      className={`flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                        isActive(href) ? "bg-sky-500/10 text-sky-300" : "text-neutral-300 hover:bg-white/[0.06] hover:text-neutral-100"
+                      }`}
+                    >
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" strokeWidth={1.5} />
+                      <div>
+                        <p className="text-sm font-medium leading-tight">{label}</p>
+                        <p className="mt-0.5 text-xs text-neutral-600">{desc}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Regelwerk */}
           <Link href="/regelwerk" className={topLinkClass(isActive("/regelwerk"))}>
             Regelwerk
@@ -198,7 +242,7 @@ export default function Navbar({ session }: Props) {
           {session?.isMod && (
             <div className="relative" ref={modRef}>
               <button
-                onClick={() => { setModOpen((v) => !v); setAdminOpen(false); setMarktOpen(false); }}
+                onClick={() => { setModOpen((v) => !v); setAdminOpen(false); setMarktOpen(false); setCommunityOpen(false); }}
                 className={topLinkClass(isModActive)}
               >
                 Mod
@@ -233,7 +277,7 @@ export default function Navbar({ session }: Props) {
           {session?.isAdmin && (
             <div className="relative" ref={adminRef}>
               <button
-                onClick={() => { setAdminOpen((v) => !v); setMarktOpen(false); setModOpen(false); }}
+                onClick={() => { setAdminOpen((v) => !v); setMarktOpen(false); setModOpen(false); setCommunityOpen(false); }}
                 className={topLinkClass(isAdminActive)}
               >
                 Admin

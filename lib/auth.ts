@@ -8,6 +8,28 @@ import {
   type CreatorCodeRow,
 } from "@/lib/queries";
 
+/** Ein angemeldeter Spieler mit gültiger, nicht widerrufener Sitzung. */
+export type VerifiedSession = { name: string; uuid: string };
+
+/**
+ * Der angemeldete Spieler – oder null, wenn niemand angemeldet ist, die
+ * Sitzung widerrufen wurde (`/weblogout` ingame) oder ihr die UUID fehlt.
+ *
+ * Für alles, was jemandem zugerechnet wird (Vorschläge, Stimmen, Bug-Meldungen)
+ * ist das der einzige zulässige Weg an die Identität: `getSession()` allein
+ * prüft den Widerruf nicht.
+ */
+export async function getVerifiedSession(): Promise<VerifiedSession | null> {
+  try {
+    const session = await getSession();
+    if (!session?.uuid) return null;
+    if (await isSessionRevoked(session.uuid, session.issuedAt)) return null;
+    return { name: session.name, uuid: session.uuid };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Gibt isAdmin zurück (false wenn nicht eingeloggt oder Sitzung widerrufen).
  * Kein DB-Fehler wirft – bei Ausfall wird false zurückgegeben.

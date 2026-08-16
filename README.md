@@ -40,6 +40,39 @@ npm run dev                  # http://localhost:3000
 Ohne erreichbare Datenbank läuft die Seite trotzdem – Kennzahlen/Graphen
 zeigen dann Platzhalter.
 
+## Vorschläge und Bug-Meldungen
+
+Beides kommt von Spielern selbst und wird ausschließlich hier eingereicht.
+
+| Seite          | Wer                     | Inhalt                                            |
+| -------------- | ----------------------- | ------------------------------------------------- |
+| `/vorschlaege` | lesen alle, sonst Login | Ideen einreichen, dafür/dagegen stimmen           |
+| `/bugs`        | Login                   | Fehler melden, bis 3 Screenshots, eigene Meldungen |
+| `/mod/bugs`    | Mod/Admin               | alle Meldungen inkl. Bilder, Priorität & Status   |
+
+Tabellen: `smpg_suggestions`, `smpg_suggestion_votes` und `smpg_bug_images`
+(alle in `setup.sql`) sowie `smpg_bugs`, die vom SMPGlobal-Plugin angelegt wird.
+
+**Ingame** gibt es das Melde-Formular nicht mehr: `/bug` zeigt nur noch den Link
+hierher (`de.leon.sMPGlobal.bug.BugCommand.REPORT_URL`), `/bug admin` bleibt und
+liest dieselbe Tabelle. Screenshots sind ingame nicht darstellbar – dort steht
+nur, wie viele es sind.
+
+**Doppelte Ideen** fängt eine Ähnlichkeitssuche ab, die schon beim Tippen des
+Titels läuft (`lib/similarity.ts`): Zeichen-Trigramme plus Wortstämme, gerechnet
+über einen Titel-Index, der eine Minute im Speicher liegt. Bewusst ohne KI – das
+muss zwischen zwei Tastenanschlägen fertig sein. Ab 0,82 Ähnlichkeit lässt sich
+ein Vorschlag erst nach ausdrücklicher Bestätigung abschicken; geprüft wird das
+beim Absenden noch einmal, damit es sich nicht am Formular vorbei umgehen lässt.
+
+**Missbrauchsschutz** (`lib/feedbackInput.ts` und die Routen unter `app/api`):
+Tagesmenge und Mindestabstand je Konto aus der Datenbank, Rate-Limits je Konto
+und IP, gesperrte oder stummgeschaltete Konten reichen nichts ein, Textlängen
+und unsichtbare Zeichen werden serverseitig zurechtgestutzt. Bilder rechnet der
+Browser vor dem Hochladen auf 1600 px herunter und kodiert sie neu; der Server
+prüft danach Kennbytes, Bildpunkte, Anzahl und Größe und liefert sie nur mit
+`nosniff` an den Melder und das Team aus.
+
 ## Konfiguration
 
 Alle Zugangsdaten ausschließlich über Umgebungsvariablen
