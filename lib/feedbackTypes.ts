@@ -8,9 +8,16 @@
 
 // ─── Vorschläge ─────────────────────────────────────────────────────────────
 
+/**
+ * Bereiche, für die man etwas vorschlagen kann.
+ *
+ * Nur, was es wirklich gibt – ein Bereich in der Liste ist eine Einladung, und
+ * Vorschläge für einen Server, den es nicht gibt, kann niemand umsetzen. Kommt
+ * später einer dazu, reicht hier eine Zeile; die letzte („Sonstiges") ist der
+ * Rückfall für alles, was sich nicht zuordnen lässt.
+ */
 export const SUGGESTION_CATEGORIES = [
   { id: "smp", label: "SMP", color: "#4ADE80" },
-  { id: "citybuild", label: "CityBuild", color: "#38BDF8" },
   { id: "lobby", label: "Lobby", color: "#C084FC" },
   { id: "shop", label: "Shop & Ränge", color: "#FBBF24" },
   { id: "website", label: "Website", color: "#F472B6" },
