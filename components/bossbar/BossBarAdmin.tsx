@@ -346,7 +346,8 @@ function MessageRow({
 
       {/* Vorschau */}
       <div className="min-w-0 flex-1 truncate">
-        <McText text={msg.message} className="text-sm leading-relaxed" />
+        {/* Vorschau zeigt, wie es ingame aussieht – dort ist nichts anklickbar. */}
+        <McText text={msg.message} className="text-sm leading-relaxed" links={false} />
       </div>
 
       {/* Status */}
@@ -683,7 +684,7 @@ function MessageEditor({
           </p>
           <div className="flex items-center gap-3 rounded-lg border border-white/5 bg-black/30 px-4 py-2">
             <div className="h-2 w-32 shrink-0 rounded-full bg-white/20" title="Bossbar-Balken (Simulation)" />
-            <McText text={body} className="flex-1 text-sm leading-relaxed" />
+            <McText text={body} className="flex-1 text-sm leading-relaxed" links={false} />
           </div>
         </div>
       )}
