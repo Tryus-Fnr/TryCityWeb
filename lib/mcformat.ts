@@ -313,6 +313,17 @@ export type McBlock =
 const HEADING = /^ {0,3}(#{1,3})[ \t]+(.*)$/;
 
 /**
+ * Farb- und Formatierungscodes am Zeilenanfang.
+ *
+ * Der Editor schreibt vor jede Zeile den dort geltenden Stil – mindestens ein
+ * `&r`. Die Raute steht also fast nie wirklich am Zeilenanfang; ohne dieses
+ * Abziehen wäre nur die allererste Zeile eines Beitrags als Überschrift erkannt
+ * worden.
+ */
+const LEADING_CODES =
+  /^(?:&(?:#[0-9a-fA-F]{6}|[0-9a-fA-FklmnorKLMNOR])|<#[0-9a-fA-F]{6}>|<gradient:[^>]*>)*/;
+
+/**
  * Zerlegt einen Beitragstext in Überschriften und normale Abschnitte.
  * Der Text der Abschnitte bleibt unangetastet und geht danach durch
  * {@link parseMc} – Farben und Verläufe funktionieren also auch in
@@ -333,10 +344,14 @@ export function splitMcBlocks(text: string): McBlock[] {
   };
 
   for (const line of (text ?? "").split("\n")) {
-    const m = HEADING.exec(line.replace(/\r$/, ""));
+    const clean = line.replace(/\r$/, "");
+    // Die Codes am Zeilenanfang gehören zur Überschrift, nicht zur Raute – sie
+    // wandern vor den Text zurück, damit Farbe und Verlauf erhalten bleiben.
+    const codes = LEADING_CODES.exec(clean)?.[0] ?? "";
+    const m = HEADING.exec(clean.slice(codes.length));
     if (m && m[2].trim()) {
       flush();
-      out.push({ kind: "heading", level: m[1].length as 1 | 2 | 3, text: m[2].trim() });
+      out.push({ kind: "heading", level: m[1].length as 1 | 2 | 3, text: codes + m[2].trim() });
     } else {
       buf.push(line);
     }
