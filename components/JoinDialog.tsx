@@ -13,7 +13,7 @@ import { Check, Copy, X } from "lucide-react";
  */
 
 const JAVA_ADDRESS = "trycity.net";
-const BEDROCK_ADDRESS = "trycity.net";
+const BEDROCK_ADDRESS = "bedrock.trycity.net";
 const BEDROCK_PORT = "19132";
 const VERSION = "26.1.2+";
 
